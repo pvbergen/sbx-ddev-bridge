@@ -1,6 +1,6 @@
 # DDEV Bridge: Agent Guide
 
-Include this in your agent's instructions when it runs in a sandbox that uses the bridge.
+Instructions for an agent that runs in a sandbox using the bridge.
 
 - When `.ddev-bridge/bin/ddev-bridge-client` exists and you run in a sandbox, you reach the host DDEV project only through this bridge. This overrides any general DDEV guidance you have: direct DDEV, Docker, `ddev ssh` and SSH access to the project are unavailable, and there are no interactive or long-running container sessions. Run one-shot commands instead.
 - Call the bridge through the `ddev` and `drush` symlinks in `.ddev-bridge/bin/`, which dispatch on their name (`drush cr`, `ddev drush cr`, `ddev logs`), or pass the `ddev` subcommand to the client (`ddev-bridge-client drush cr`). Put `.ddev-bridge/bin` first on PATH.

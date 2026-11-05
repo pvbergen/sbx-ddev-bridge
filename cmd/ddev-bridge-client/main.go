@@ -57,6 +57,12 @@ func findToken() (string, error) {
 	}
 }
 
+// cloneMode: the sandbox edits its own copy, so host ddev would not see the changes.
+func cloneMode() bool {
+	_, err := os.Stat("/run/sandbox/source")
+	return err == nil && os.Getenv("DDEV_BRIDGE_ALLOW_CLONE") == ""
+}
+
 func main() {
 	argv := os.Args[1:]
 	if filepath.Base(os.Args[0]) == "drush" {
@@ -69,19 +75,32 @@ func main() {
 		fmt.Println(addonMarker)
 		return
 	}
+	base := os.Getenv("DDEV_BRIDGE_URL")
+	if base == "" {
+		base = defaultURL
+	}
+	if argv[0] == "--session-start" {
+		e := sessionEnv{
+			sandbox: os.Getenv("SANDBOX_NAME"),
+			envFile: os.Getenv("CLAUDE_ENV_FILE"),
+			binDir:  binDir(),
+			base:    base,
+			clone:   cloneMode(),
+			probe:   probeBridge,
+		}
+		if err := sessionStart(e, os.Stdout); err != nil {
+			fail("%v", err)
+		}
+		return
+	}
 
-	// In clone mode the sandbox edits its own copy; host ddev would not see the changes.
-	if _, err := os.Stat("/run/sandbox/source"); err == nil && os.Getenv("DDEV_BRIDGE_ALLOW_CLONE") == "" {
+	if cloneMode() {
 		fail("this sandbox runs in clone mode; host ddev would not see your changes. Use a direct-mode sandbox.")
 	}
 
 	token, err := findToken()
 	if err != nil {
 		fail("%v", err)
-	}
-	base := os.Getenv("DDEV_BRIDGE_URL")
-	if base == "" {
-		base = defaultURL
 	}
 
 	// Ctrl-C / SIGTERM closes the connection; the bridge then kills the remote process group.

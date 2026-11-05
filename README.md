@@ -81,12 +81,32 @@ The add-on:
   in the background unless the same version already runs, and replaces an older version.
 - runs `sbx policy allow network localhost:7474` if `sbx` is installed, or prints the command.
 
-Updating is the same download and `ddev add-on get` again. Removing: `ddev add-on remove ddev-bridge` (the
-binaries stay in the global dir for other projects).
+Updating is the same download and `ddev add-on get` again. Removing: see [Uninstall](#uninstall).
 
 In the sandbox, put `.ddev-bridge/bin` first on PATH, for example from your agent's session hook or
 shell profile, and give the agent [`agent-guide.md`](agent-guide.md) as instructions. The sandbox must be
 in **direct mode**. In clone mode the client refuses to run, because host ddev wouldn't see the agent's edits.
+
+### Uninstall
+**From one repository** (on the host):
+```bash
+ddev add-on remove ddev-bridge
+ddev restart
+```
+This unregisters the project and removes `.ddev-bridge/` (client, symlinks, token), the ddev-bridge lines
+in `.gitignore`, `.ddev/config.ddev-bridge.yaml` and `.ddev/addon-metadata/ddev-bridge/`. The binaries in
+the global dir stay for other projects. If the global binary is already gone, the removal prints what to do
+by hand: delete those files and the `.gitignore` block yourself, and run `ddev bridge unregister` if the
+command still exists (otherwise drop the project from `~/.config/ddev-bridge/projects.json`).
+
+**From the machine** (after removing it from every repository; a repository that still has the add-on
+gets a failing `post-start` hook):
+```bash
+ddev bridge stop
+rm -rf ~/.ddev/ddev-bridge-dist ~/.ddev/commands/host/bridge   # or under $DDEV_GLOBAL_DIR / ~/.config/ddev
+rm -rf ~/.config/ddev-bridge ~/.local/state/ddev-bridge        # registry, log, PID
+sbx policy rm network --resource localhost:7474
+```
 
 ### `ddev bridge` (host only; denied from the sandbox)
 | Command | |

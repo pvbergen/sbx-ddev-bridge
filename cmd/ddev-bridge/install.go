@@ -44,10 +44,10 @@ func installProject(args []string) {
 	fs := flag.NewFlagSet("install-project", flag.ExitOnError)
 	client := fs.String("client", defaultClient(), "sandbox client binary to install")
 	noSbx := fs.Bool("no-sbx", false, "do not add the sbx network rule")
-	fs.Parse(args)
+	pos := mustParse(fs, args, 1, "[flags] [dir]")
 	dir := "."
-	if fs.NArg() > 0 {
-		dir = fs.Arg(0)
+	if len(pos) > 0 {
+		dir = pos[0]
 	}
 	root, _, err := registry.ValidateRoot(dir)
 	if err != nil {

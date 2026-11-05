@@ -123,7 +123,7 @@ tarball appears on the release a few minutes later.
 
 Manual setup without the add-on:
 ```bash
-ddev-bridge install-project ~/projects/my-d11-site --client dist/linux-amd64/ddev-bridge-client
+ddev-bridge install-project --client dist/linux-amd64/ddev-bridge-client ~/projects/my-d11-site
 ddev-bridge serve             # foreground; or `ddev-bridge ensure` for the background
 ```
 

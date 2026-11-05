@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"ddev-bridge/internal/integrity"
@@ -51,7 +52,7 @@ func main() {
 	case "ensure", "stop", "status":
 		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 		addr := fs.String("addr", defaultAddr, "bridge address")
-		fs.Parse(os.Args[2:])
+		mustParse(fs, os.Args[2:], 0, "[--addr …]")
 		var err error
 		switch os.Args[1] {
 		case "ensure":
@@ -168,11 +169,41 @@ func listProjects() {
 	}
 }
 
+// parseFlags parses args and returns the positional arguments (at most maxPos).
+// Go's flag package stops at the first non-flag argument, so a flag written
+// after it (`install-project ~/proj --no-sbx`) would be silently ignored;
+// that is reported as an error instead.
+func parseFlags(fs *flag.FlagSet, args []string, maxPos int) ([]string, error) {
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+	pos := fs.Args()
+	for _, a := range pos {
+		if strings.HasPrefix(a, "-") && a != "-" {
+			return nil, fmt.Errorf("flag %s comes after an argument; put flags first", a)
+		}
+	}
+	if len(pos) > maxPos {
+		return nil, fmt.Errorf("unexpected argument %q", pos[maxPos])
+	}
+	return pos, nil
+}
+
+// mustParse is parseFlags that prints the error and usage and exits 2.
+func mustParse(fs *flag.FlagSet, args []string, maxPos int, synopsis string) []string {
+	pos, err := parseFlags(fs, args, maxPos)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ddev-bridge %s: %v\nusage: ddev-bridge %s %s\n", fs.Name(), err, fs.Name(), synopsis)
+		os.Exit(2)
+	}
+	return pos
+}
+
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", defaultAddr, "listen address (keep it on loopback)")
 	timeout := fs.Duration("timeout", 10*time.Minute, "per-command timeout")
-	fs.Parse(args)
+	mustParse(fs, args, 0, "[--addr …] [--timeout …]")
 
 	s := &server.Server{Version: version}
 	s.Runner.Timeout = *timeout

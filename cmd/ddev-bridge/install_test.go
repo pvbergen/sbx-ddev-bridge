@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,5 +54,34 @@ func TestCopyAtomicReplacesRunningFile(t *testing.T) {
 		if strings.HasPrefix(e.Name(), ".ddev-bridge-client-") {
 			t.Fatalf("temp file left behind: %s", e.Name())
 		}
+	}
+}
+
+func TestParseFlags(t *testing.T) {
+	newFS := func() (*flag.FlagSet, *bool) {
+		fs := flag.NewFlagSet("install-project", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		return fs, fs.Bool("no-sbx", false, "")
+	}
+
+	fs, noSbx := newFS()
+	pos, err := parseFlags(fs, []string{"--no-sbx", "/p"}, 1)
+	if err != nil || !*noSbx || len(pos) != 1 || pos[0] != "/p" {
+		t.Fatalf("flags first: pos=%v noSbx=%v err=%v", pos, *noSbx, err)
+	}
+
+	fs, _ = newFS()
+	if _, err := parseFlags(fs, []string{"/p", "--no-sbx"}, 1); err == nil || !strings.Contains(err.Error(), "--no-sbx") {
+		t.Fatalf("flag after the dir must fail and name the flag, got %v", err)
+	}
+
+	fs, _ = newFS()
+	if _, err := parseFlags(fs, []string{"/p", "/q"}, 1); err == nil {
+		t.Fatal("a second positional argument must fail")
+	}
+
+	fs, _ = newFS()
+	if pos, err := parseFlags(fs, nil, 1); err != nil || len(pos) != 0 {
+		t.Fatalf("no args: pos=%v err=%v", pos, err)
 	}
 }

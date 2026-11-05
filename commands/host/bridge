@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #ddev-generated
 ## Description: Manage the ddev-bridge for sandboxed agents
-## Usage: bridge [status|ensure|stop|diff|approve [-y]|register|unregister|list|log [N]|version]
-## Example: "ddev bridge status" or "ddev bridge diff" or "ddev bridge approve"
+## Usage: bridge [status|ensure|stop|diff|approve [-y]|register|unregister|list|log [N]|version|policy ls|allow|deny|rm]
+## Example: "ddev bridge status" or "ddev bridge approve" or "ddev bridge policy deny --reason 'reaches live' ddev get_dump"
 ## CanRunGlobally: true
 set -euo pipefail
 
@@ -33,6 +33,10 @@ case "$cmd" in
       case "$answer" in y|Y|yes) ;; *) echo "not approved"; exit 1 ;; esac
     fi
     exec "$b" approve "$root" ;;
+  policy)
+    sub="${1:-ls}"
+    if [ $# -gt 0 ]; then shift; fi
+    exec "$b" policy "$sub" --dir "$root" "$@" ;;
   log)
     state="${DDEV_BRIDGE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ddev-bridge}"
     exec tail -n "${1:-50}" "$state/bridge.log" ;;

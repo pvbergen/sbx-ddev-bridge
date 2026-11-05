@@ -70,20 +70,43 @@ Other sources:
 The add-on:
 - puts the binaries in ddev's global dir (`~/.ddev/ddev-bridge-dist/`) and adds the host command
   `ddev bridge`. Nothing binary lands in the project's `.ddev/`.
-- installs the sandbox client as `.helga-ai/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
-  and adds `/.helga-ai/bin/` and `/.helga-ai/ddev-bridge.token` to `.gitignore`.
-- registers the project (token in `.helga-ai/ddev-bridge.token`) and approves the current `.ddev/`,
+- installs the sandbox client as `.ddev-bridge/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
+  and adds `/.ddev-bridge/` to `.gitignore`, together with the add-on's `.ddev/config.ddev-bridge.yaml`
+  and `.ddev/addon-metadata/ddev-bridge/`. The bridge is a per-developer install: a committed config
+  would run `ddev bridge ensure` on every teammate's `ddev start`, which fails without the add-on. If
+  these files are already tracked, untrack them with `git rm --cached`.
+- registers the project (token in `.ddev-bridge/token`) and approves the current `.ddev/`,
   including its own `.ddev/config.ddev-bridge.yaml`.
 - adds a `post-start` hook, so every `ddev start` runs `ddev bridge ensure`. That starts the bridge
   in the background unless the same version already runs, and replaces an older version.
 - runs `sbx policy allow network localhost:7474` if `sbx` is installed, or prints the command.
 
-Updating is the same download and `ddev add-on get` again. Removing: `ddev add-on remove ddev-bridge` (the
-binaries stay in the global dir for other projects).
+Updating is the same download and `ddev add-on get` again. Removing: see [Uninstall](#uninstall).
 
-In the sandbox, put `.helga-ai/bin` first on PATH (the AI setup's SessionStart hook does this when
-`$SANDBOX_NAME` is set). The sandbox must be in **direct mode**. In clone mode the client refuses to
-run, because host ddev wouldn't see the agent's edits.
+In the sandbox, put `.ddev-bridge/bin` first on PATH, for example from your agent's session hook or
+shell profile, and give the agent [`agent-guide.md`](agent-guide.md) as instructions. The sandbox must be
+in **direct mode**. In clone mode the client refuses to run, because host ddev wouldn't see the agent's edits.
+
+### Uninstall
+**From one repository** (on the host):
+```bash
+ddev add-on remove ddev-bridge
+ddev restart
+```
+This unregisters the project and removes `.ddev-bridge/` (client, symlinks, token), the ddev-bridge lines
+in `.gitignore`, `.ddev/config.ddev-bridge.yaml` and `.ddev/addon-metadata/ddev-bridge/`. The binaries in
+the global dir stay for other projects. If the global binary is already gone, the removal prints what to do
+by hand: delete those files and the `.gitignore` block yourself, and run `ddev bridge unregister` if the
+command still exists (otherwise drop the project from `~/.config/ddev-bridge/projects.json`).
+
+**From the machine** (after removing it from every repository; a repository that still has the add-on
+gets a failing `post-start` hook):
+```bash
+ddev bridge stop
+rm -rf ~/.ddev/ddev-bridge-dist ~/.ddev/commands/host/bridge   # or under $DDEV_GLOBAL_DIR / ~/.config/ddev
+rm -rf ~/.config/ddev-bridge ~/.local/state/ddev-bridge        # registry, log, PID
+sbx policy rm network --resource localhost:7474
+```
 
 ### `ddev bridge` (host only; denied from the sandbox)
 | Command | |
@@ -123,7 +146,7 @@ tarball appears on the release a few minutes later.
 
 Manual setup without the add-on:
 ```bash
-ddev-bridge install-project ~/projects/my-d11-site --client dist/linux-amd64/ddev-bridge-client
+ddev-bridge install-project --client dist/linux-amd64/ddev-bridge-client ~/projects/my-d11-site
 ddev-bridge serve             # foreground; or `ddev-bridge ensure` for the background
 ```
 

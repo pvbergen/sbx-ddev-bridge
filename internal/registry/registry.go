@@ -1,7 +1,7 @@
 // Package registry stores the projects the bridge may act on, each bound to a token.
 //
 // Only a SHA-256 hash of each token is stored on the host. The plain token is
-// written into the project (.helga-ai/ddev-bridge.token) for the sandbox client.
+// written into the project (.ddev-bridge/token) for the sandbox client.
 package registry
 
 import (
@@ -21,8 +21,11 @@ import (
 	"ddev-bridge/internal/integrity"
 )
 
+// Dir is the bridge's own directory in a project (client, symlinks, token).
+const Dir = ".ddev-bridge"
+
 // TokenFile is the token location relative to a project root.
-var TokenFile = filepath.Join(".helga-ai", "ddev-bridge.token")
+var TokenFile = filepath.Join(Dir, "token")
 
 // Project is one registered ddev project.
 type Project struct {

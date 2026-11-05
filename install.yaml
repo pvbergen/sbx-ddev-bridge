@@ -52,4 +52,9 @@ removal_actions:
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
     case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) arch=unknown ;; esac
     b="$d/ddev-bridge-dist/host/$os-$arch/ddev-bridge"
-    if [ -x "$b" ]; then "$b" uninstall-project "${DDEV_APPROOT:-..}"; fi
+    if [ -x "$b" ]; then
+      "$b" uninstall-project "${DDEV_APPROOT:-..}"
+    else
+      echo "ddev-bridge binary not found at $b: remove .ddev-bridge/ and the ddev-bridge lines in .gitignore by hand,"
+      echo "and drop this project from ~/.config/ddev-bridge/projects.json (see 'Uninstall' in the README)"
+    fi

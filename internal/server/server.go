@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"ddev-bridge/internal/policy"
 	"ddev-bridge/internal/proto"
 	"ddev-bridge/internal/registry"
+	"ddev-bridge/internal/rules"
 	"ddev-bridge/internal/runner"
 )
 
@@ -50,6 +52,8 @@ type auditEntry struct {
 	Argv        []string `json:"argv,omitempty"`
 	Ran         []string `json:"ran,omitempty"`          // argv actually executed, when rewritten by policy
 	DdevChanged []string `json:"ddev_changed,omitempty"` // .ddev/ files the command left unapproved
+	HostRule    string   `json:"host_rule,omitempty"`    // host policy rule that decided, as file:line: rule
+	Override    string   `json:"override,omitempty"`     // built-in denial lifted by a host allow rule
 	Outcome     string   `json:"outcome"`
 	Reason      string   `json:"reason,omitempty"`
 	ExitCode    *int     `json:"exit_code,omitempty"`
@@ -151,7 +155,29 @@ func (s *Server) check(ctx context.Context, proj *registry.Project, argv []strin
 		CustomCommands: policy.CustomCommands(proj.Root),
 		Drush:          s.drushLister(ctx, proj.Root, fetch),
 	}
+	p.Rules, p.RulesErr = hostRules(proj.Name)
 	return policy.Check(p, argv)
+}
+
+// hostRules reads the developer's policy file on each request, so edits apply
+// without a restart. A missing file has no rules.
+func hostRules(project string) ([]rules.Rule, error) {
+	path, err := rules.DefaultPath()
+	if err != nil {
+		return nil, err
+	}
+	f, err := rules.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	return f.For(project), nil
+}
+
+func ruleRef(r *rules.Rule) string {
+	if r == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d: %s", r.File, r.Line, r)
 }
 
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
@@ -194,15 +220,16 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fw := newFrameWriter(w)
-	denied := func(reason string) {
+	denied := func(d policy.Decision) {
 		code := proto.ExitDenied
-		entry.Outcome, entry.Reason, entry.ExitCode = "denied", reason, &code
+		entry.Outcome, entry.Reason, entry.ExitCode = "denied", d.Reason, &code
+		entry.HostRule = ruleRef(d.Rule)
 		s.audit(entry)
-		fw.frame(proto.Frame{Exit: &code, Denied: reason})
+		fw.frame(proto.Frame{Exit: &code, Denied: d.Reason})
 	}
 	// Check before waiting for the lock, so denials don't queue behind a running command.
 	if d := s.check(r.Context(), proj, req.Argv, false); !d.Allowed {
-		denied(d.Reason)
+		denied(d)
 		return
 	}
 
@@ -223,9 +250,10 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	d := s.check(r.Context(), proj, req.Argv, true)
 	if !d.Allowed {
-		denied(d.Reason)
+		denied(d)
 		return
 	}
+	entry.HostRule, entry.Override = ruleRef(d.Rule), d.Override
 	if strings.Join(d.Argv, "\x00") != strings.Join(req.Argv, "\x00") {
 		entry.Ran = d.Argv
 	}

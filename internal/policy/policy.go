@@ -10,6 +10,9 @@
 //
 // Check may rewrite argv (e.g. force `ddev exec --raw`) so that what runs is
 // exactly what was checked.
+//
+// The developer's host policy file (package rules) then has the last word: the
+// last matching rule allows or denies, also over a built-in denial.
 package policy
 
 import (
@@ -18,16 +21,20 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"ddev-bridge/internal/rules"
 )
 
 // Project is the context a request is checked against. It is filled in by the
 // server from the registry and the host, never from the request.
 type Project struct {
-	Name           string      // ddev project name of the registered project
-	Root           string      // absolute host path of the project
-	OtherProjects  []string    // names of other ddev projects on this host
-	CustomCommands []string    // custom ddev commands available to this project (project + global)
-	Drush          DrushLister // the project's drush commands, to resolve aliases and abbreviations
+	Name           string       // ddev project name of the registered project
+	Root           string       // absolute host path of the project
+	OtherProjects  []string     // names of other ddev projects on this host
+	CustomCommands []string     // custom ddev commands available to this project (project + global)
+	Drush          DrushLister  // the project's drush commands, to resolve aliases and abbreviations
+	Rules          []rules.Rule // host policy rules for this project, in evaluation order
+	RulesErr       error        // the host policy file could not be read; everything is denied
 }
 
 // Decision is the result of checking an argv.
@@ -35,6 +42,9 @@ type Decision struct {
 	Allowed bool
 	Reason  string   // set when denied
 	Argv    []string // argv to execute when allowed (may differ from the input)
+
+	Rule     *rules.Rule // host rule that matched, if any
+	Override string      // built-in denial lifted by a host allow rule
 }
 
 func allow(argv []string) Decision { return Decision{Allowed: true, Argv: argv} }
@@ -166,5 +176,12 @@ func Check(p Project, argv []string) Decision {
 			return deny("NUL bytes in arguments are not allowed")
 		}
 	}
-	return checkDdev(p, argv)
+	// Not overridable by host rules: the sandbox must not manage the bridge.
+	if argv[0] == "bridge" {
+		return deny("ddev bridge is not allowed: %s", ddevDenied["bridge"])
+	}
+	if p.RulesErr != nil {
+		return deny("the developer's host policy file is invalid, so the bridge denies everything: %v", p.RulesErr)
+	}
+	return applyHostRules(p, argv, checkDdev(p, argv))
 }

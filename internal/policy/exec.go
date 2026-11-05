@@ -149,8 +149,20 @@ func checkComposer(args []string) Decision {
 // checkTool. It rewrites the call to `ddev exec --raw [flags] -- <program> args...`
 // so the container does not pass the arguments through `bash -c`.
 func checkExec(p Project, argv []string) Decision {
+	flags, cmd, d := parseExec(argv)
+	if !d.Allowed {
+		return d
+	}
+	if d := checkTool(p, cmd[0], cmd[1:]); !d.Allowed {
+		return d
+	}
+	return allow(execArgv(flags, cmd))
+}
+
+// parseExec splits `exec [flags] [--] program args...` into the flags to keep
+// and the program with its arguments.
+func parseExec(argv []string) (flags, cmd []string, d Decision) {
 	args := argv[1:]
-	flags := []string{}
 	i := 0
 	for ; i < len(args); i++ {
 		a := args[i]
@@ -177,32 +189,32 @@ func checkExec(p Project, argv []string) Decision {
 		case "-s", "--service":
 			v, ok := takeVal()
 			if !ok || !safeValue.MatchString(v) {
-				return deny("exec: --service requires a service name")
+				return nil, nil, deny("exec: --service requires a service name")
 			}
 			flags = append(flags, "--service", v)
 		case "-d", "--dir":
 			v, ok := takeVal()
 			if !ok || !safeValue.MatchString(v) {
-				return deny("exec: --dir requires a simple path")
+				return nil, nil, deny("exec: --dir requires a simple path")
 			}
 			flags = append(flags, "--dir", v)
 		case "-q", "--quiet":
 			flags = append(flags, name)
 		default:
-			return deny("exec: option %q is not allowed", a)
+			return nil, nil, deny("exec: option %q is not allowed", a)
 		}
 	}
 	if i >= len(args) {
-		return deny("exec: no command given")
+		return nil, nil, deny("exec: no command given")
 	}
 	if strings.ContainsAny(args[i], " \t\n;|&$`<>()") {
-		return deny("exec: %q looks like a shell command line; pass the program and its arguments separately (no shell is used)", args[i])
+		return nil, nil, deny("exec: %q looks like a shell command line; pass the program and its arguments separately (no shell is used)", args[i])
 	}
-	if d := checkTool(p, args[i], args[i+1:]); !d.Allowed {
-		return d
-	}
+	return flags, args[i:], allow(nil)
+}
+
+func execArgv(flags, cmd []string) []string {
 	out := append([]string{"exec", "--raw"}, flags...)
 	out = append(out, "--")
-	out = append(out, args[i:]...)
-	return allow(out)
+	return append(out, cmd...)
 }

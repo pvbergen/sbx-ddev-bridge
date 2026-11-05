@@ -42,15 +42,16 @@ func (s *Server) projectLock(root string) *sync.Mutex {
 }
 
 type auditEntry struct {
-	Time     string   `json:"time"`
-	Remote   string   `json:"remote"`
-	Project  string   `json:"project,omitempty"`
-	Argv     []string `json:"argv,omitempty"`
-	Ran      []string `json:"ran,omitempty"` // argv actually executed, when rewritten by policy
-	Outcome  string   `json:"outcome"`
-	Reason   string   `json:"reason,omitempty"`
-	ExitCode *int     `json:"exit_code,omitempty"`
-	Duration string   `json:"duration,omitempty"`
+	Time        string   `json:"time"`
+	Remote      string   `json:"remote"`
+	Project     string   `json:"project,omitempty"`
+	Argv        []string `json:"argv,omitempty"`
+	Ran         []string `json:"ran,omitempty"`          // argv actually executed, when rewritten by policy
+	DdevChanged []string `json:"ddev_changed,omitempty"` // .ddev/ files the command left unapproved
+	Outcome     string   `json:"outcome"`
+	Reason      string   `json:"reason,omitempty"`
+	ExitCode    *int     `json:"exit_code,omitempty"`
+	Duration    string   `json:"duration,omitempty"`
 }
 
 func (s *Server) audit(e auditEntry) {
@@ -232,6 +233,38 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if r.Context().Err() != nil {
 		entry.Outcome = "cancelled"
 	}
+	if changed := ddevChanged(proj.Root); len(changed) > 0 {
+		entry.DdevChanged = changed
+		fw.frame(proto.Frame{Stream: proto.Stderr, Data: []byte("ddev-bridge: this command changed the .ddev configuration (" +
+			strings.Join(changed, ", ") + "); the bridge is paused for this project until the developer runs `ddev bridge approve` on the host\n")})
+	}
 	s.audit(entry)
 	fw.frame(proto.Frame{Exit: &code})
+}
+
+// ddevChanged lists the .ddev/ changes since the last approval, read fresh
+// from the registry in case the developer approved while the command ran.
+func ddevChanged(root string) []string {
+	reg, err := registry.Load()
+	if err != nil {
+		return nil
+	}
+	var approved integrity.Fingerprint
+	for _, p := range reg.Projects {
+		if p.Root == root {
+			approved = p.Approved
+		}
+	}
+	if approved == nil {
+		return nil
+	}
+	fp, err := integrity.Snapshot(root)
+	if err != nil {
+		return nil
+	}
+	diff := integrity.Diff(approved, fp)
+	if len(diff) > 10 {
+		diff = append(diff[:10], "…")
+	}
+	return diff
 }

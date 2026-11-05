@@ -242,6 +242,20 @@ func TestTimeoutKillsProcessGroup(t *testing.T) {
 	waitGone(t, os.Getenv("PIDFILE"))
 }
 
+func TestCommandChangingDdevIsReported(t *testing.T) {
+	e := setup(t, time.Minute)
+	res, _ := e.run(t, context.Background(), e.token, "exec", "touch", ".ddev/extra.yaml")
+	if res.exit != 0 || !strings.Contains(res.stderr, "this command changed the .ddev configuration") || !strings.Contains(res.stderr, ".ddev/extra.yaml") {
+		t.Fatalf("unexpected result %+v", res)
+	}
+	if !strings.Contains(e.audit.String(), `"ddev_changed":[`) {
+		t.Fatalf("audit lacks ddev_changed: %s", e.audit)
+	}
+	if res, _ := e.run(t, context.Background(), e.token, "drush", "cr"); res.exit != proto.ExitDenied {
+		t.Fatalf("next command should be paused: %+v", res)
+	}
+}
+
 func TestQueuedCommandIsRecheckedUnderLock(t *testing.T) {
 	e := setup(t, time.Minute)
 	first := make(chan *result)

@@ -84,7 +84,7 @@ The add-on:
 Updating is the same download and `ddev add-on get` again. Removing: see [Uninstall](#uninstall).
 
 In the sandbox, put `.ddev-bridge/bin` first on PATH, for example from your agent's session hook or
-shell profile, and give the agent [`agent-guide.md`](agent-guide.md) as instructions. The sandbox must be
+shell profile, and give the agent [`agent-guide.md`](cmd/ddev-bridge-client/agent-guide.md) as instructions. The sandbox must be
 in **direct mode**. In clone mode the client refuses to run, because host ddev wouldn't see the agent's edits.
 
 ### Uninstall

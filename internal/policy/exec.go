@@ -47,7 +47,7 @@ func interpreter(name string) string {
 
 // checkTool checks running program bin with args inside a ddev container.
 // It is used for `ddev exec` and for ddev's tool shortcuts (`ddev composer`, `ddev php`, ...).
-func checkTool(bin string, args []string) Decision {
+func checkTool(p Project, bin string, args []string) Decision {
 	name := base(bin)
 	switch {
 	case shells[name]:
@@ -67,10 +67,10 @@ func checkTool(bin string, args []string) Decision {
 			if i := firstPositional(args); i >= 0 {
 				script := base(args[i])
 				if script == "drush" || script == "drush.php" {
-					return checkDrush(args[i+1:])
+					return checkDrush(p, args[i+1:])
 				}
 				if script == "composer" || script == "composer.phar" {
-					return checkTool("composer", args[i+1:])
+					return checkTool(p, "composer", args[i+1:])
 				}
 			}
 		}
@@ -79,7 +79,7 @@ func checkTool(bin string, args []string) Decision {
 
 	switch name {
 	case "drush", "drush.php":
-		return checkDrush(args)
+		return checkDrush(p, args)
 	case "composer", "composer.phar":
 		return checkComposer(args)
 	case "mysql", "mariadb", "psql", "pgcli", "mycli":
@@ -148,7 +148,7 @@ func checkComposer(args []string) Decision {
 // checkExec allows `ddev exec [-s SERVICE] [-d DIR] <program> args...` subject to
 // checkTool. It rewrites the call to `ddev exec --raw [flags] -- <program> args...`
 // so the container does not pass the arguments through `bash -c`.
-func checkExec(argv []string) Decision {
+func checkExec(p Project, argv []string) Decision {
 	args := argv[1:]
 	flags := []string{}
 	i := 0
@@ -198,7 +198,7 @@ func checkExec(argv []string) Decision {
 	if strings.ContainsAny(args[i], " \t\n;|&$`<>()") {
 		return deny("exec: %q looks like a shell command line; pass the program and its arguments separately (no shell is used)", args[i])
 	}
-	if d := checkTool(args[i], args[i+1:]); !d.Allowed {
+	if d := checkTool(p, args[i], args[i+1:]); !d.Allowed {
 		return d
 	}
 	out := append([]string{"exec", "--raw"}, flags...)

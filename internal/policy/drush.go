@@ -72,7 +72,7 @@ func drushFlagBeforeCommand(a string) bool {
 var drushSQLCommands = map[string]bool{"sql:query": true, "sqlq": true, "sql-query": true}
 
 // checkDrush checks drush arguments (without "drush").
-func checkDrush(args []string) Decision {
+func checkDrush(p Project, args []string) Decision {
 	command := ""
 	for _, a := range args {
 		if strings.HasPrefix(a, "@") {

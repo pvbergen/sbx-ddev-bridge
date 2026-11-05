@@ -142,6 +142,9 @@ func main() {
 				fmt.Println(d)
 			}
 			if len(diff) > 0 {
+				if hint := integrity.AddonManifestHint(diff); hint != "" {
+					fmt.Println(hint)
+				}
 				fmt.Println("review the files (e.g. git diff .ddev/) before approving")
 				os.Exit(1)
 			}

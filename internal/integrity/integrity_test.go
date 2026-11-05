@@ -98,3 +98,21 @@ func TestSymlinkRecorded(t *testing.T) {
 		t.Fatalf("symlink not detected: %v", d)
 	}
 }
+
+func TestAddonManifestHint(t *testing.T) {
+	for _, c := range []struct {
+		diff []string
+		hint bool
+	}{
+		{nil, false},
+		{[]string{"added: .ddev/addon-metadata/ddev-bridge/manifest.yaml"}, true},
+		{[]string{"changed: .ddev/addon-metadata/a/manifest.yaml", "removed: .ddev/addon-metadata/b/manifest.yaml"}, true},
+		{[]string{"added: .ddev/addon-metadata/ddev-bridge/manifest.yaml", "changed: .ddev/config.yaml"}, false},
+		{[]string{"added: .ddev/addon-metadata/x/sub/manifest.yaml"}, false},
+		{[]string{"added: .ddev/commands/host/manifest.yaml"}, false},
+	} {
+		if got := AddonManifestHint(c.diff) != ""; got != c.hint {
+			t.Errorf("AddonManifestHint(%v) = %v, want %v", c.diff, got, c.hint)
+		}
+	}
+}

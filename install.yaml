@@ -1,0 +1,55 @@
+#ddev-generated
+# ddev add-on: ddev-bridge
+#   ddev add-on get /tmp/ddev-bridge.tar.gz   (release asset, see the README)
+#   ddev add-on get /path/to/sbx-ddev-bridge  (local clone, after `make release`)
+name: ddev-bridge
+
+ddev_version_constraint: '>= v1.24.0'
+
+# Only this small file goes into the project's .ddev/ (it starts the bridge on `ddev start`).
+project_files:
+  - config.ddev-bridge.yaml
+
+# The binaries and the `ddev bridge` host command go into the global ddev dir,
+# so they are shared by all projects and never land in a project repository.
+global_files:
+  - commands/host/bridge
+  - ddev-bridge-dist
+
+pre_install_actions:
+  - |
+    #ddev-description:Stopping a running bridge so its binary can be replaced
+    for d in "${DDEV_GLOBAL_DIR:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/ddev" "$HOME/.ddev"; do
+      [ -n "$d" ] && [ -d "$d/ddev-bridge-dist" ] && break
+    done
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) arch=unknown ;; esac
+    b="$d/ddev-bridge-dist/host/$os-$arch/ddev-bridge"
+    if [ -x "$b" ]; then "$b" stop || true; fi
+
+post_install_actions:
+  - |
+    #ddev-description:Installing the sandbox client, registering the project and starting the bridge
+    set -e
+    for d in "${DDEV_GLOBAL_DIR:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/ddev" "$HOME/.ddev"; do
+      [ -n "$d" ] && [ -d "$d/ddev-bridge-dist" ] && break
+    done
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) echo "unsupported CPU $(uname -m)"; exit 1 ;; esac
+    case "$os" in linux|darwin) ;; *) echo "unsupported OS $os (use Linux, WSL2 or macOS)"; exit 1 ;; esac
+    b="$d/ddev-bridge-dist/host/$os-$arch/ddev-bridge"
+    chmod +x "$b" "$d"/ddev-bridge-dist/client/*/ddev-bridge-client "$d/commands/host/bridge"
+    "$b" install-project "${DDEV_APPROOT:-..}"
+    "$b" ensure
+    echo "ddev-bridge $("$b" version) installed. Run 'ddev restart' so the bridge starts with the project."
+
+removal_actions:
+  - |
+    #ddev-description:Removing the sandbox client and unregistering the project
+    for d in "${DDEV_GLOBAL_DIR:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/ddev" "$HOME/.ddev"; do
+      [ -n "$d" ] && [ -d "$d/ddev-bridge-dist" ] && break
+    done
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) arch=unknown ;; esac
+    b="$d/ddev-bridge-dist/host/$os-$arch/ddev-bridge"
+    if [ -x "$b" ]; then "$b" uninstall-project "${DDEV_APPROOT:-..}"; fi

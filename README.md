@@ -81,9 +81,9 @@ The add-on:
 Updating is the same download and `ddev add-on get` again. Removing: `ddev add-on remove ddev-bridge` (the
 binaries stay in the global dir for other projects).
 
-In the sandbox, put `.ddev-bridge/bin` first on PATH (the AI setup's SessionStart hook does this when
-`$SANDBOX_NAME` is set). The sandbox must be in **direct mode**. In clone mode the client refuses to
-run, because host ddev wouldn't see the agent's edits.
+In the sandbox, put `.ddev-bridge/bin` first on PATH, for example from your agent's session hook or
+shell profile, and give the agent [`agent-guide.md`](agent-guide.md) as instructions. The sandbox must be
+in **direct mode**. In clone mode the client refuses to run, because host ddev wouldn't see the agent's edits.
 
 ### `ddev bridge` (host only; denied from the sandbox)
 | Command | |

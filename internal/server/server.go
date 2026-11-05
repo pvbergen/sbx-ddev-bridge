@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -27,6 +28,7 @@ type Server struct {
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex // one in-flight command per project
+	drush map[string]*drushList  // drush commands per project
 }
 
 func (s *Server) projectLock(root string) *sync.Mutex {
@@ -121,7 +123,8 @@ func (s streamWriter) Write(p []byte) (int, error) {
 }
 
 // check runs the .ddev approval check and then the policy.
-func (s *Server) check(proj *registry.Project, argv []string) policy.Decision {
+// fetch allows listing drush commands; the early check passes false.
+func (s *Server) check(ctx context.Context, proj *registry.Project, argv []string, fetch bool) policy.Decision {
 	if proj.Approved == nil {
 		return policy.Decision{Reason: "the .ddev configuration of this project was never approved; ask the developer to run `ddev bridge approve` on the host"}
 	}
@@ -146,6 +149,7 @@ func (s *Server) check(proj *registry.Project, argv []string) policy.Decision {
 		Root:           proj.Root,
 		OtherProjects:  policy.OtherProjects(proj.Name),
 		CustomCommands: policy.CustomCommands(proj.Root),
+		Drush:          s.drushLister(ctx, proj.Root, fetch),
 	}
 	return policy.Check(p, argv)
 }
@@ -197,7 +201,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		fw.frame(proto.Frame{Exit: &code, Denied: reason})
 	}
 	// Check before waiting for the lock, so denials don't queue behind a running command.
-	if d := s.check(proj, req.Argv); !d.Allowed {
+	if d := s.check(r.Context(), proj, req.Argv, false); !d.Allowed {
 		denied(d.Reason)
 		return
 	}
@@ -217,7 +221,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 			proj = p
 		}
 	}
-	d := s.check(proj, req.Argv)
+	d := s.check(r.Context(), proj, req.Argv, true)
 	if !d.Allowed {
 		denied(d.Reason)
 		return

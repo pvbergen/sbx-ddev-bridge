@@ -24,12 +24,20 @@ import (
 // fakeDdev behaves like ddev for the commands the tests use.
 const fakeDdev = `#!/bin/sh
 case "$1" in
-  drush)  echo "cwd=$(pwd)"; echo "argv=$*"; echo "oops" >&2; exit 3 ;;
+  drush)
+    if [ "$2" = list ]; then
+      if [ -n "$DRUSH_LIST_FAIL" ] || [ -e "$BUSY" ]; then echo "project is not running" >&2; exit 1; fi
+      echo x >> "$DRUSH_LIST_CALLS"
+      echo '{"commands":[{"name":"cache:rebuild","usage":["cache:rebuild [options]","cr"]},{"name":"php:eval","usage":["ev"]}]}'
+      exit 0
+    fi
+    echo "cwd=$(pwd)"; echo "argv=$*"; echo "oops" >&2; exit 3 ;;
   exec)
     echo "argv=$*"
     case "$4" in
       touch) touch "$5" ;;
       sleep-touch) sleep 1; touch "$5" ;;
+      busy) touch "$BUSY"; sleep 1; rm "$BUSY" ;;
     esac ;;
   logs)   echo first; sleep 1; echo second ;;
   restart)
@@ -52,6 +60,8 @@ func setup(t *testing.T, timeout time.Duration) *env {
 	dir := t.TempDir()
 	t.Setenv("DDEV_BRIDGE_CONFIG_DIR", filepath.Join(dir, "cfg"))
 	t.Setenv("PIDFILE", filepath.Join(dir, "child.pid"))
+	t.Setenv("DRUSH_LIST_CALLS", filepath.Join(dir, "drush-list-calls"))
+	t.Setenv("BUSY", filepath.Join(dir, "busy"))
 	t.Setenv("DDEV_GLOBAL_DIR", filepath.Join(dir, "ddev-global"))
 
 	bin := filepath.Join(dir, "ddev")
@@ -271,4 +281,44 @@ func TestQueuedCommandIsRecheckedUnderLock(t *testing.T) {
 	if r := <-first; r.exit != 0 {
 		t.Fatalf("first command: %+v", r)
 	}
+}
+
+func TestDrushNamesAreResolvedWithTheProjectsList(t *testing.T) {
+	e := setup(t, time.Minute)
+	if res, _ := e.run(t, context.Background(), e.token, "drush", "cache:reb"); res.exit != 3 || !strings.Contains(res.stdout, "argv=drush cache:reb") {
+		t.Fatalf("abbreviation of an allowed command: %+v", res)
+	}
+	if res, _ := e.run(t, context.Background(), e.token, "drush", "php:ev", "1"); res.exit != proto.ExitDenied || !strings.Contains(res.denied, "(php:eval)") {
+		t.Fatalf("abbreviation of php:eval: %+v", res)
+	}
+	// Listed once and cached; an unknown name re-lists at most every drushRefreshEvery.
+	e.run(t, context.Background(), e.token, "drush", "nosuch")
+	e.run(t, context.Background(), e.token, "drush", "cr")
+	if b, _ := os.ReadFile(os.Getenv("DRUSH_LIST_CALLS")); strings.Count(string(b), "x") != 1 {
+		t.Fatalf("drush list ran %d times, want 1", strings.Count(string(b), "x"))
+	}
+}
+
+func TestDrushDeniedWhenListFails(t *testing.T) {
+	e := setup(t, time.Minute)
+	t.Setenv("DRUSH_LIST_FAIL", "1")
+	res, _ := e.run(t, context.Background(), e.token, "drush", "cr")
+	if res.exit != proto.ExitDenied || !strings.Contains(res.denied, "project is not running") || !strings.Contains(res.denied, "ddev start") {
+		t.Fatalf("unexpected result %+v", res)
+	}
+}
+
+func TestDrushListedOnlyWhenTheProjectIsFree(t *testing.T) {
+	e := setup(t, time.Minute)
+	first := make(chan *result)
+	go func() {
+		res, _ := e.run(t, context.Background(), e.token, "exec", "busy")
+		first <- res
+	}()
+	time.Sleep(300 * time.Millisecond) // `drush list` would fail while the first command runs
+	res, _ := e.run(t, context.Background(), e.token, "drush", "cr")
+	if res.exit != 3 {
+		t.Fatalf("queued drush call: %+v", res)
+	}
+	<-first
 }

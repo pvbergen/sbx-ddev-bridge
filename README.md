@@ -25,6 +25,12 @@ restart, logs (also `-f`), snapshots, import/export-db, config, xdebug, and the 
 The same tool rules apply to the ddev shortcuts (`ddev php`, `ddev mysql`, `ddev npm` …) and to
 indirect calls (`ddev exec vendor/bin/drush …`, `ddev exec php vendor/bin/drush …`, `ddev exec composer …`).
 
+Drush command names are checked as drush resolves them, aliases and abbreviations included
+(`php:ev` is `php:eval`). The bridge reads the project's commands with `ddev drush list --format=json`
+on the first drush call and keeps them in memory; an unknown name lists them again (at most every 30 s).
+Ambiguous or unknown names are denied, and so are drush calls while the list can't be read, e.g.
+when the project is stopped. Options before the command must carry their value (`--uri=x`).
+
 ### `.ddev/` approval
 ddev reads hooks (`exec-host` runs **on the host**), extra docker-compose files (which can mount any
 host directory) and custom commands (including host commands) from `.ddev/`, and the agent can edit

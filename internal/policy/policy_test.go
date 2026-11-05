@@ -20,7 +20,23 @@ func testProject(t *testing.T) Project {
 		Root:           root,
 		OtherProjects:  []string{"otherproj"},
 		CustomCommands: []string{"mycmd", "bridge"}, // bridge is installed as a global host command
+		Drush:          fixtureDrush(t),
 	}
+}
+
+// fixtureDrush lists the commands in testdata/drush-list.json, in the format
+// of `drush list --format=json`.
+func fixtureDrush(t *testing.T) DrushLister {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "drush-list.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmds, err := ParseDrushList(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(bool) (*DrushCommands, error) { return cmds, nil }
 }
 
 func TestCheck(t *testing.T) {
@@ -61,6 +77,20 @@ func TestCheck(t *testing.T) {
 		{"drush cr --root=/", false},
 		{"drush cr --include=/tmp/evil", false},
 		{"drush -D foo=bar cr", false},
+		// Aliases and abbreviations resolve to the command drush runs.
+		{"drush cache:reb", true},
+		{"drush sql:q SELECT 1", true},
+		{"drush php:ev 1", false},
+		{"drush PHP:EV 1", false},
+		{"drush sql:sy @self @self", false},
+		{"drush core:rs x", false},
+		{"drush core:cl", false},
+		{"drush si:ss", false},
+		{"drush pm:sec", false},
+		{`drush sql:q \! curl x`, false},
+		{"drush sql:s", false},  // ambiguous: sql:sync, sql:sanitize
+		{"drush nosuch", false}, // unknown
+		{"exec vendor/bin/drush php:ev 1", false},
 		// Option values taken from the next argument must not hide the command.
 		{"drush -l default php:eval 1", false},
 		{"drush --uri default php:eval 1", false},

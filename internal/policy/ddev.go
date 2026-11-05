@@ -73,14 +73,14 @@ func checkDdev(p Project, argv []string) Decision {
 
 	switch canonical {
 	case "exec":
-		return checkExec(argv)
+		return checkExec(p, argv)
 	case "drush":
-		if d := checkDrush(args); !d.Allowed {
+		if d := checkDrush(p, args); !d.Allowed {
 			return d
 		}
 		return allow(argv)
 	case "composer", "php", "mysql", "mariadb", "psql", "npm", "yarn":
-		if d := checkTool(canonical, args); !d.Allowed {
+		if d := checkTool(p, canonical, args); !d.Allowed {
 			return d
 		}
 		return allow(argv)

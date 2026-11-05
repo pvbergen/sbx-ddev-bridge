@@ -1,0 +1,504 @@
+{
+ "application": {
+  "name": "Drush Commandline Tool",
+  "version": "13.3.1"
+ },
+ "commands": [
+  {
+   "name": "cache:rebuild",
+   "description": "\u2026",
+   "usage": [
+    "cache:rebuild [options]",
+    "drush cache:rebuild --help",
+    "cr",
+    "rebuild",
+    "cache-rebuild"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "core:status",
+   "description": "\u2026",
+   "usage": [
+    "core:status [options]",
+    "drush core:status --help",
+    "status",
+    "st",
+    "core-status"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "site:install",
+   "description": "\u2026",
+   "usage": [
+    "site:install [options]",
+    "drush site:install --help",
+    "si",
+    "sin",
+    "site-install"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "sql:drop",
+   "description": "\u2026",
+   "usage": [
+    "sql:drop [options]",
+    "drush sql:drop --help",
+    "sql-drop"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "sql:query",
+   "description": "\u2026",
+   "usage": [
+    "sql:query [options]",
+    "drush sql:query --help",
+    "sqlq",
+    "sql-query"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "sql:sync",
+   "description": "\u2026",
+   "usage": [
+    "sql:sync [options]",
+    "drush sql:sync --help",
+    "sql-sync"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "sql:sanitize",
+   "description": "\u2026",
+   "usage": [
+    "sql:sanitize [options]",
+    "drush sql:sanitize --help",
+    "sqlsan",
+    "sql-sanitize"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "php:eval",
+   "description": "\u2026",
+   "usage": [
+    "php:eval [options]",
+    "drush php:eval --help",
+    "eval",
+    "ev",
+    "php-eval"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "php:script",
+   "description": "\u2026",
+   "usage": [
+    "php:script [options]",
+    "drush php:script --help",
+    "scr",
+    "php-script"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "php:cli",
+   "description": "\u2026",
+   "usage": [
+    "php:cli [options]",
+    "drush php:cli --help",
+    "php",
+    "core:cli",
+    "core-cli"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "core:rsync",
+   "description": "\u2026",
+   "usage": [
+    "core:rsync [options]",
+    "drush core:rsync --help",
+    "rsync",
+    "core-rsync"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "site:ssh",
+   "description": "\u2026",
+   "usage": [
+    "site:ssh [options]",
+    "drush site:ssh --help",
+    "ssh",
+    "site-ssh"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "pm:security",
+   "description": "\u2026",
+   "usage": [
+    "pm:security [options]",
+    "drush pm:security --help",
+    "sec",
+    "pm-security"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "pm:install",
+   "description": "\u2026",
+   "usage": [
+    "pm:install [options]",
+    "drush pm:install --help",
+    "in",
+    "install",
+    "pm-install",
+    "en",
+    "pm-enable",
+    "pm:enable"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "pm:uninstall",
+   "description": "\u2026",
+   "usage": [
+    "pm:uninstall [options]",
+    "drush pm:uninstall --help",
+    "un",
+    "pmu",
+    "pm-uninstall"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "config:export",
+   "description": "\u2026",
+   "usage": [
+    "config:export [options]",
+    "drush config:export --help",
+    "cex",
+    "config-export"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "config:import",
+   "description": "\u2026",
+   "usage": [
+    "config:import [options]",
+    "drush config:import --help",
+    "cim",
+    "config-import"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "user:login",
+   "description": "\u2026",
+   "usage": [
+    "user:login [options]",
+    "drush user:login --help",
+    "uli",
+    "user-login"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "core:cron",
+   "description": "\u2026",
+   "usage": [
+    "core:cron [options]",
+    "drush core:cron --help",
+    "cron",
+    "core-cron"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "locale:update",
+   "description": "\u2026",
+   "usage": [
+    "locale:update [options]",
+    "drush locale:update --help",
+    "locale-update"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "list",
+   "description": "\u2026",
+   "usage": [
+    "list [options]",
+    "drush list --help"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "help",
+   "description": "\u2026",
+   "usage": [
+    "help [options]",
+    "drush help --help"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": false
+  },
+  {
+   "name": "some:contrib-cmd",
+   "description": "\u2026",
+   "usage": [
+    "some:contrib-cmd [options]",
+    "drush some:contrib-cmd --help"
+   ],
+   "help": "\u2026",
+   "definition": {
+    "arguments": {},
+    "options": {}
+   },
+   "hidden": true
+  }
+ ],
+ "namespaces": [
+  {
+   "id": "cache",
+   "commands": [
+    "cache:rebuild",
+    "cr",
+    "rebuild",
+    "cache-rebuild"
+   ]
+  },
+  {
+   "id": "core",
+   "commands": [
+    "core:status",
+    "status",
+    "st",
+    "core-status",
+    "core:rsync",
+    "rsync",
+    "core-rsync",
+    "core:cron",
+    "cron",
+    "core-cron"
+   ]
+  },
+  {
+   "id": "site",
+   "commands": [
+    "site:install",
+    "si",
+    "sin",
+    "site-install",
+    "site:ssh",
+    "ssh",
+    "site-ssh"
+   ]
+  },
+  {
+   "id": "sql",
+   "commands": [
+    "sql:drop",
+    "sql-drop",
+    "sql:query",
+    "sqlq",
+    "sql-query",
+    "sql:sync",
+    "sql-sync",
+    "sql:sanitize",
+    "sqlsan",
+    "sql-sanitize"
+   ]
+  },
+  {
+   "id": "php",
+   "commands": [
+    "php:eval",
+    "eval",
+    "ev",
+    "php-eval",
+    "php:script",
+    "scr",
+    "php-script",
+    "php:cli",
+    "php",
+    "core:cli",
+    "core-cli"
+   ]
+  },
+  {
+   "id": "pm",
+   "commands": [
+    "pm:security",
+    "sec",
+    "pm-security",
+    "pm:install",
+    "in",
+    "install",
+    "pm-install",
+    "en",
+    "pm-enable",
+    "pm:enable",
+    "pm:uninstall",
+    "un",
+    "pmu",
+    "pm-uninstall"
+   ]
+  },
+  {
+   "id": "config",
+   "commands": [
+    "config:export",
+    "cex",
+    "config-export",
+    "config:import",
+    "cim",
+    "config-import"
+   ]
+  },
+  {
+   "id": "user",
+   "commands": [
+    "user:login",
+    "uli",
+    "user-login"
+   ]
+  },
+  {
+   "id": "locale",
+   "commands": [
+    "locale:update",
+    "locale-update"
+   ]
+  },
+  {
+   "id": "_global",
+   "commands": [
+    "list",
+    "help"
+   ]
+  },
+  {
+   "id": "some",
+   "commands": [
+    "some:contrib-cmd"
+   ]
+  }
+ ]
+}

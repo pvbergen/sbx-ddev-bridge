@@ -36,9 +36,37 @@ var drushDenied = func() map[string]string {
 
 // Options that would let drush escape the local site or load foreign code/config.
 var drushForbiddenOpts = map[string]bool{
-	"-r": true, "--root": true, "--alias-path": true, "--config": true, "--include": true,
+	"-r": true, "--root": true, "--alias-path": true, "-c": true, "--config": true, "--include": true,
 	"--ssh-options": true, "--remote-host": true, "--remote-user": true,
 	"-D": true, "--define": true, "--php": true, "--php-options": true,
+}
+
+// Value-less drush and Symfony flags that may come before the command. Any
+// other option there must carry its value with "=": drush and Symfony take the
+// value of -l/--uri, -c, --strict, … from the next argument, which the bridge
+// would otherwise mistake for the command (`drush -l x php:eval …`).
+var drushFlagsBeforeCommand = map[string]bool{
+	"--": true, "--yes": true, "--no": true, "--no-interaction": true, "--debug": true,
+	"--verbose": true, "--quiet": true, "--simulate": true, "--xdebug": true,
+	"--ansi": true, "--no-ansi": true, "--help": true, "--version": true, "--local": true,
+}
+
+// Short value-less flags; combined forms like -yv are allowed.
+const drushShortFlags = "yndvqshV"
+
+func drushFlagBeforeCommand(a string) bool {
+	if strings.Contains(a, "=") || drushFlagsBeforeCommand[a] {
+		return true
+	}
+	if len(a) < 2 || a[0] != '-' || a[1] == '-' {
+		return false
+	}
+	for _, c := range a[1:] {
+		if !strings.ContainsRune(drushShortFlags, c) {
+			return false
+		}
+	}
+	return true
 }
 
 var drushSQLCommands = map[string]bool{"sql:query": true, "sqlq": true, "sql-query": true}
@@ -57,6 +85,9 @@ func checkDrush(args []string) Decision {
 			name, _, _ := splitOpt(a)
 			if drushForbiddenOpts[name] {
 				return deny("drush option %s is not allowed: it can load code or config from outside the project", name)
+			}
+			if command == "" && !drushFlagBeforeCommand(a) {
+				return deny("drush option %s before the command needs its value attached (%s=<value>), or put it after the command", a, a)
 			}
 			continue
 		}

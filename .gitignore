@@ -37,3 +37,6 @@ go.work.sum
 dist/
 # Add-on binaries (make release); built by CI and shipped in the GitHub release tarball
 ddev-bridge-dist/
+
+# Local Claude Code settings
+.claudeignore

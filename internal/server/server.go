@@ -188,17 +188,17 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d := s.check(proj, req.Argv)
 	fw := newFrameWriter(w)
-	if !d.Allowed {
+	denied := func(reason string) {
 		code := proto.ExitDenied
-		entry.Outcome, entry.Reason, entry.ExitCode = "denied", d.Reason, &code
+		entry.Outcome, entry.Reason, entry.ExitCode = "denied", reason, &code
 		s.audit(entry)
-		fw.frame(proto.Frame{Exit: &code, Denied: d.Reason})
-		return
+		fw.frame(proto.Frame{Exit: &code, Denied: reason})
 	}
-	if strings.Join(d.Argv, "\x00") != strings.Join(req.Argv, "\x00") {
-		entry.Ran = d.Argv
+	// Check before waiting for the lock, so denials don't queue behind a running command.
+	if d := s.check(proj, req.Argv); !d.Allowed {
+		denied(d.Reason)
+		return
 	}
 
 	lock := s.projectLock(proj.Root)
@@ -208,6 +208,21 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		entry.Outcome = "cancelled"
 		s.audit(entry)
 		return
+	}
+	// Check again: the command that held the lock may have changed .ddev/, or
+	// the developer may have approved meanwhile, so reload the registry.
+	if reg, err := registry.Load(); err == nil {
+		if p, ok := reg.Lookup(token); ok {
+			proj = p
+		}
+	}
+	d := s.check(proj, req.Argv)
+	if !d.Allowed {
+		denied(d.Reason)
+		return
+	}
+	if strings.Join(d.Argv, "\x00") != strings.Join(req.Argv, "\x00") {
+		entry.Ran = d.Argv
 	}
 
 	start := time.Now()

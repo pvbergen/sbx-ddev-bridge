@@ -25,7 +25,12 @@ import (
 const fakeDdev = `#!/bin/sh
 case "$1" in
   drush)  echo "cwd=$(pwd)"; echo "argv=$*"; echo "oops" >&2; exit 3 ;;
-  exec)   echo "argv=$*" ;;
+  exec)
+    echo "argv=$*"
+    case "$4" in
+      touch) touch "$5" ;;
+      sleep-touch) sleep 1; touch "$5" ;;
+    esac ;;
   logs)   echo first; sleep 1; echo second ;;
   restart)
     sleep 300 &
@@ -235,4 +240,21 @@ func TestTimeoutKillsProcessGroup(t *testing.T) {
 		t.Fatalf("unexpected result %+v", res)
 	}
 	waitGone(t, os.Getenv("PIDFILE"))
+}
+
+func TestQueuedCommandIsRecheckedUnderLock(t *testing.T) {
+	e := setup(t, time.Minute)
+	first := make(chan *result)
+	go func() {
+		res, _ := e.run(t, context.Background(), e.token, "exec", "sleep-touch", ".ddev/extra.yaml")
+		first <- res
+	}()
+	time.Sleep(300 * time.Millisecond) // the first command holds the lock and hasn't touched .ddev/ yet
+	res, _ := e.run(t, context.Background(), e.token, "drush", "cr")
+	if res.exit != proto.ExitDenied || !strings.Contains(res.denied, ".ddev/extra.yaml") {
+		t.Fatalf("queued command ran despite the .ddev change: %+v", res)
+	}
+	if r := <-first; r.exit != 0 {
+		t.Fatalf("first command: %+v", r)
+	}
 }

@@ -61,6 +61,8 @@ func TestCheck(t *testing.T) {
 		{"drush cr --root=/", false},
 		{"drush cr --include=/tmp/evil", false},
 		{"drush -D foo=bar cr", false},
+		{"drush -c=x.yml cr", false},
+		{"drush cr -c x.yml", false},
 		{`drush sqlq \! curl x`, false},
 		{"drush sqlq select 1; system curl x", false},
 

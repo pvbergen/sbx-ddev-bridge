@@ -36,7 +36,7 @@ var drushDenied = func() map[string]string {
 
 // Options that would let drush escape the local site or load foreign code/config.
 var drushForbiddenOpts = map[string]bool{
-	"-r": true, "--root": true, "--alias-path": true, "--config": true, "--include": true,
+	"-r": true, "--root": true, "--alias-path": true, "-c": true, "--config": true, "--include": true,
 	"--ssh-options": true, "--remote-host": true, "--remote-user": true,
 	"-D": true, "--define": true, "--php": true, "--php-options": true,
 }

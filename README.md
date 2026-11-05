@@ -80,12 +80,25 @@ The add-on:
 - adds a `post-start` hook, so every `ddev start` runs `ddev bridge ensure`. That starts the bridge
   in the background unless the same version already runs, and replaces an older version.
 - runs `sbx policy allow network localhost:7474` if `sbx` is installed, or prints the command.
+- adds a Claude Code overlay to `.claude/settings.local.json` (see [Agents](#agents)), keeping
+  everything else in the file. If the file isn't valid JSON, it is left alone and the snippet is printed.
 
 Updating is the same download and `ddev add-on get` again. Removing: see [Uninstall](#uninstall).
 
-In the sandbox, put `.ddev-bridge/bin` first on PATH, for example from your agent's session hook or
-shell profile, and give the agent [`agent-guide.md`](agent-guide.md) as instructions. The sandbox must be
-in **direct mode**. In clone mode the client refuses to run, because host ddev wouldn't see the agent's edits.
+The sandbox must be in **direct mode**. In clone mode the client refuses to run, because host ddev
+wouldn't see the agent's edits.
+
+### Agents
+**Claude Code** needs no setup. The add-on's overlay in `.claude/settings.local.json` has:
+- a `SessionStart` hook, `ddev-bridge-client --session-start`. On the host it does nothing. In a sandbox
+  it puts `.ddev-bridge/bin` on PATH (via `$CLAUDE_ENV_FILE`) and gives the agent the
+  [agent guide](cmd/ddev-bridge-client/agent-guide.md) and whether the bridge is reachable;
+- `permissions.ask` rules for drush and ddev commands that change data, config, dependencies or the
+  environment (`drush cim`, `ddev composer require`, `ddev restart`, …). These prompts also apply to
+  host sessions in the project.
+
+**Other agents:** put `.ddev-bridge/bin` first on PATH, for example from a session hook or shell profile,
+and give the agent the [agent guide](cmd/ddev-bridge-client/agent-guide.md) as instructions.
 
 ### Uninstall
 **From one repository** (on the host):
@@ -94,7 +107,8 @@ ddev add-on remove ddev-bridge
 ddev restart
 ```
 This unregisters the project and removes `.ddev-bridge/` (client, symlinks, token), the ddev-bridge lines
-in `.gitignore`, `.ddev/config.ddev-bridge.yaml` and `.ddev/addon-metadata/ddev-bridge/`. The binaries in
+in `.gitignore`, the Claude Code overlay in `.claude/settings.local.json`, `.ddev/config.ddev-bridge.yaml`
+and `.ddev/addon-metadata/ddev-bridge/`. The binaries in
 the global dir stay for other projects. If the global binary is already gone, the removal prints what to do
 by hand: delete those files and the `.gitignore` block yourself, and run `ddev bridge unregister` if the
 command still exists (otherwise drop the project from `~/.config/ddev-bridge/projects.json`).

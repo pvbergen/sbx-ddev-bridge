@@ -18,12 +18,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Test
-        run: make test
-      - name: Build the add-on package
-        run: make package VERSION="ci-${GITHUB_SHA::7}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ddev-bridge-package
-          path: dist/ddev-bridge.tar.gz
-          retention-days: 14
+      # make package runs make test first, then builds all binaries and the
+      # tarball. Nothing is uploaded; the release workflow publishes packages.
+      - name: Test and test-build the add-on package
+        run: |
+          make package VERSION="ci-${GITHUB_SHA::7}"
+          tar -tzf dist/ddev-bridge.tar.gz ddev-bridge/install.yaml >/dev/null

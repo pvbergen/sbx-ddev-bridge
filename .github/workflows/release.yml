@@ -1,34 +1,31 @@
 name: Release
 
-# Push a tag like v2.1.0 (or run manually with a tag) to build the add-on and
-# publish it as a GitHub release with dist/ddev-bridge.tar.gz attached.
+# Publish a release on GitHub (Releases → Draft a new release, tag like v2.1.0).
+# This workflow then builds the add-on for that tag and attaches
+# ddev-bridge.tar.gz and its .sha256 to the release.
 on:
-  push:
-    tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag to create and release, e.g. v2.1.0'
-        required: true
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  package:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      TAG: ${{ github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Check the tag
         run: |
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad tag: $TAG"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad tag: $TAG (expected vX.Y.Z)"; exit 1; }
       - name: Test and build
         run: make package VERSION="$TAG"
       - name: Check the binaries
@@ -38,10 +35,7 @@ jobs:
             grep -aq '#ddev-generated' "$f" || { echo "missing add-on marker: $f"; exit 1; }
           done
           (cd dist && sha256sum ddev-bridge.tar.gz > ddev-bridge.tar.gz.sha256)
-      - name: Publish the release
+      - name: Attach the package to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          pre=""; [[ "$TAG" == *-* ]] && pre="--prerelease"
-          gh release create "$TAG" dist/ddev-bridge.tar.gz dist/ddev-bridge.tar.gz.sha256 \
-            --target "$GITHUB_SHA" --title "ddev-bridge $TAG" --generate-notes $pre
+        run: gh release upload "$TAG" dist/ddev-bridge.tar.gz dist/ddev-bridge.tar.gz.sha256 --clobber

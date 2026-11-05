@@ -71,7 +71,10 @@ The add-on:
 - puts the binaries in ddev's global dir (`~/.ddev/ddev-bridge-dist/`) and adds the host command
   `ddev bridge`. Nothing binary lands in the project's `.ddev/`.
 - installs the sandbox client as `.ddev-bridge/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
-  and adds `/.ddev-bridge/` to `.gitignore`.
+  and adds `/.ddev-bridge/` to `.gitignore`, together with the add-on's `.ddev/config.ddev-bridge.yaml`
+  and `.ddev/addon-metadata/ddev-bridge/`. The bridge is a per-developer install: a committed config
+  would run `ddev bridge ensure` on every teammate's `ddev start`, which fails without the add-on. If
+  these files are already tracked, untrack them with `git rm --cached`.
 - registers the project (token in `.ddev-bridge/token`) and approves the current `.ddev/`,
   including its own `.ddev/config.ddev-bridge.yaml`.
 - adds a `post-start` hook, so every `ddev start` runs `ddev bridge ensure`. That starts the bridge

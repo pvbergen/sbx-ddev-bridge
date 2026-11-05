@@ -19,18 +19,27 @@ func TestEnsureGitignore(t *testing.T) {
 		t.Fatal("second call must be a no-op")
 	}
 	b, _ := os.ReadFile(p)
-	want := "vendor/\n# ddev-bridge (sandbox client and token)\n/.ddev-bridge/\n"
+	want := "vendor/\n# ddev-bridge (per-developer install, not for the repository)\n/.ddev-bridge/\n/.ddev/config.ddev-bridge.yaml\n/.ddev/addon-metadata/ddev-bridge/\n"
 	if string(b) != want {
 		t.Fatalf("got %q, want %q", b, want)
 	}
 
-	// An existing entry, anchored or not, is respected.
-	for _, line := range []string{"/.ddev-bridge/", ".ddev-bridge/"} {
-		q := filepath.Join(t.TempDir(), ".gitignore")
-		os.WriteFile(q, []byte(line+"\n"), 0o644)
-		if added, _ := ensureGitignore(q); added {
-			t.Fatalf("%s already ignored; nothing to add", line)
-		}
+	// Existing entries, anchored or not, are respected.
+	q := filepath.Join(t.TempDir(), ".gitignore")
+	os.WriteFile(q, []byte(".ddev-bridge/\n.ddev/config.ddev-bridge.yaml\n/.ddev/addon-metadata/ddev-bridge/\n"), 0o644)
+	if added, _ := ensureGitignore(q); added {
+		t.Fatal("all entries already present; nothing to add")
+	}
+
+	// An older install (client dir only) gets just the missing lines.
+	r := filepath.Join(t.TempDir(), ".gitignore")
+	os.WriteFile(r, []byte("/.ddev-bridge/\n"), 0o644)
+	if added, _ := ensureGitignore(r); !added {
+		t.Fatal("the add-on config lines are missing and must be added")
+	}
+	b, _ = os.ReadFile(r)
+	if strings.Count(string(b), "/.ddev-bridge/") != 1 || !strings.Contains(string(b), "/.ddev/config.ddev-bridge.yaml\n") {
+		t.Fatalf("unexpected .gitignore: %q", b)
 	}
 }
 

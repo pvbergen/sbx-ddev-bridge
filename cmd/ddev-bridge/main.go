@@ -28,7 +28,7 @@ Usage:
   ddev-bridge stop [--addr …]                  stop the background bridge
   ddev-bridge status [--addr …]                show whether the bridge runs, and the registered projects
   ddev-bridge version                          print the version
-  ddev-bridge install-project [dir]            install the sandbox client into .helga-ai/bin, update
+  ddev-bridge install-project [dir]            install the sandbox client into .ddev-bridge/bin, update
                                                .gitignore, register (used by the ddev add-on)
   ddev-bridge uninstall-project [dir]          remove the client and token, unregister
   ddev-bridge register [dir]                   register a ddev project (default: .), write its token

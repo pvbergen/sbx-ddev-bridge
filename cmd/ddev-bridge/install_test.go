@@ -17,16 +17,18 @@ func TestEnsureGitignore(t *testing.T) {
 		t.Fatal("second call must be a no-op")
 	}
 	b, _ := os.ReadFile(p)
-	want := "vendor/\n# ddev-bridge (sandbox client and token)\n/.helga-ai/bin/\n/.helga-ai/ddev-bridge.token\n"
+	want := "vendor/\n# ddev-bridge (sandbox client and token)\n/.ddev-bridge/\n"
 	if string(b) != want {
 		t.Fatalf("got %q, want %q", b, want)
 	}
 
-	// A broader existing rule is respected.
-	q := filepath.Join(t.TempDir(), ".gitignore")
-	os.WriteFile(q, []byte(".helga-ai/\n"), 0o644)
-	if added, _ := ensureGitignore(q); added {
-		t.Fatal(".helga-ai/ already ignored; nothing to add")
+	// An existing entry, anchored or not, is respected.
+	for _, line := range []string{"/.ddev-bridge/", ".ddev-bridge/"} {
+		q := filepath.Join(t.TempDir(), ".gitignore")
+		os.WriteFile(q, []byte(line+"\n"), 0o644)
+		if added, _ := ensureGitignore(q); added {
+			t.Fatalf("%s already ignored; nothing to add", line)
+		}
 	}
 }
 

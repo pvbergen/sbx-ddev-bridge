@@ -70,9 +70,9 @@ Other sources:
 The add-on:
 - puts the binaries in ddev's global dir (`~/.ddev/ddev-bridge-dist/`) and adds the host command
   `ddev bridge`. Nothing binary lands in the project's `.ddev/`.
-- installs the sandbox client as `.helga-ai/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
-  and adds `/.helga-ai/bin/` and `/.helga-ai/ddev-bridge.token` to `.gitignore`.
-- registers the project (token in `.helga-ai/ddev-bridge.token`) and approves the current `.ddev/`,
+- installs the sandbox client as `.ddev-bridge/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
+  and adds `/.ddev-bridge/` to `.gitignore`.
+- registers the project (token in `.ddev-bridge/token`) and approves the current `.ddev/`,
   including its own `.ddev/config.ddev-bridge.yaml`.
 - adds a `post-start` hook, so every `ddev start` runs `ddev bridge ensure`. That starts the bridge
   in the background unless the same version already runs, and replaces an older version.
@@ -81,7 +81,7 @@ The add-on:
 Updating is the same download and `ddev add-on get` again. Removing: `ddev add-on remove ddev-bridge` (the
 binaries stay in the global dir for other projects).
 
-In the sandbox, put `.helga-ai/bin` first on PATH (the AI setup's SessionStart hook does this when
+In the sandbox, put `.ddev-bridge/bin` first on PATH (the AI setup's SessionStart hook does this when
 `$SANDBOX_NAME` is set). The sandbox must be in **direct mode**. In clone mode the client refuses to
 run, because host ddev wouldn't see the agent's edits.
 

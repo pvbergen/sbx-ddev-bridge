@@ -70,7 +70,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(proto.RunPath, s.handleRun)
 	mux.HandleFunc("/v1/run", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "this bridge speaks "+proto.RunPath+"; update the ddev-bridge client in .helga-ai/bin", http.StatusGone)
+		http.Error(w, "this bridge speaks "+proto.RunPath+"; update the ddev-bridge client in .ddev-bridge/bin", http.StatusGone)
 	})
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok "+s.Version+"\n") })
 	return mux

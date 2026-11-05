@@ -2,14 +2,14 @@
 helga-id: "runtime.ddev-bridge"
 helga-load: "conditional"
 helga-when: "Running ddev, drush, composer, cache clears, logs or code checks from an agent sandbox"
-helga-paths: ".helga-ai/bin/**"
+helga-paths: ".ddev-bridge/bin/**"
 helga-requires: "runtime.ddev"
 ---
 
 # DDEV Bridge (Agent Sandbox)
 
-- When `.helga-ai/bin/ddev-bridge-client` exists, the agent runs in a sandbox that reaches the host DDEV project only through this bridge. This narrows `runtime.ddev`: direct DDEV, Docker and SSH access to the project are unavailable.
-- Call the bridge through the `ddev` and `drush` symlinks in `.helga-ai/bin/`, which dispatch on their name (`drush cr`, `ddev logs`), or pass the `ddev` subcommand to the client (`ddev-bridge-client drush cr`).
+- When `.ddev-bridge/bin/ddev-bridge-client` exists, the agent runs in a sandbox that reaches the host DDEV project only through this bridge. This narrows `runtime.ddev`: direct DDEV, Docker and SSH access to the project are unavailable.
+- Call the bridge through the `ddev` and `drush` symlinks in `.ddev-bridge/bin/`, which dispatch on their name (`drush cr`, `ddev logs`), or pass the `ddev` subcommand to the client (`ddev-bridge-client drush cr`).
 - Everything local to this project is allowed: any drush command, composer, `ddev exec <program>`, start/stop/restart, logs, snapshots, database import/export inside the project, and the project's custom commands.
 - The bridge denies three kinds of calls: those that reach the web (remote environments and site aliases, `pull`/`push`/`share`, network tools such as `curl`/`wget`/`ssh`/`git clone`), those that affect the host or other projects (`poweroff`, `delete`, `list`, `add-on remove`, `--all`, other project names, paths outside the project), and shells or inline code (`bash`, `php -r`, `drush php:eval`, `composer run-script`). A refused call exits with code 126 and prints `ddev-bridge: denied: …` with the reason.
 - Treat a denial as final. Do not retry with aliases, other spellings, option reordering, `--` separators, wrappers or other workarounds. Do not reach a denied capability another way, for example by writing a script, test, composer script or PHP file that fetches from the web, and running that. Report what was denied.

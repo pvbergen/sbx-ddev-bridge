@@ -48,8 +48,48 @@ ddev bridge approve   # shows the diff again, asks, and accepts the current stat
 This also applies after the agent runs `ddev config …`, and after every `ddev add-on get` or `remove` on the
 host, including installing this add-on: ddev writes the add-on manifest after the install actions, so approve once.
 
+### Host policy (your own rules)
+Your own allow and deny rules live in a plain-text file next to the registry
+(`~/.config/ddev-bridge/policy`; on macOS `~/Library/Application Support/ddev-bridge/policy`).
+The bridge reads it on every request. Manage it with `ddev bridge policy` or edit it by hand:
+
+```
+# rules before the first [section] apply to every project
+deny  drush sql:drop               # the reason after # is shown to the agent
+allow ddev composer %
+
+[orell-fuessli]                    # only this ddev project
+deny  ddev get_dump                # ssh/rsync to the live server
+```
+
+- A rule matches the start of a command: `deny drush sql:drop` also covers `drush sql:drop -y`.
+- `%` matches any text inside a word (`drush sql:%`), and a lone `%` at the end matches any further
+  words (`drush %`, `ddev %`). Use `%`, not `*`: the shell expands `*`, and the file rejects it.
+- Commands are normalized, so one rule covers every route: `drush` via `ddev drush`, `ddev exec` or
+  `php vendor/bin/drush`, with names and aliases resolved (`cim` is `config:import`); composer is
+  `ddev composer …`; other programs are `ddev exec <name> …`; ddev aliases are resolved (`ddev st`
+  is `ddev describe`). Options are ignored; write option values attached (`--file=x`), since a
+  separate value counts as a word.
+- The **last** matching rule wins, and a project's section comes after the global rules. A matching
+  rule decides **even over the built-in denials**: `allow drush %` also opens `php:eval` and remote
+  site aliases. `ls`, `status` and the add command flag such rules, and the audit log records each
+  overridden call (`host_rule`, `override`). `ddev bridge` itself stays denied from the sandbox.
+- Custom commands are allowed by default. Deny those that reach remote servers (`deny ddev get_dump`).
+- An invalid file makes the bridge deny everything, with the parse error and line.
+
+```bash
+ddev bridge policy                                          # list, numbered in evaluation order
+ddev bridge policy deny --reason "reaches live" ddev get_dump   # this project
+ddev bridge policy deny --global drush sql:drop             # every project
+ddev bridge policy allow ddev exec phpunit
+ddev bridge policy rm 2                                     # or `rm` to pick from the list
+ddev bridge policy reset                                    # all rules of this project (asks first)
+ddev bridge policy reset --global                           # all global rules
+```
+Flags come before the rule. Adding a rule with the same words replaces it in place.
+
 Exit codes:
-- `126`: denied by policy (reason on stderr)
+- `126`: denied by the built-in or the host policy (reason on stderr)
 - `125`: bridge unreachable or a protocol error
 - `124`: timed out (10 min by default)
 - `130`: cancelled
@@ -136,10 +176,12 @@ sbx policy rm network --resource localhost:7474
 | `ddev bridge approve [-y]` | Show the diff, ask, approve |
 | `ddev bridge ensure` / `stop` | Start in the background / stop |
 | `ddev bridge log [N]` | Last N lines of the bridge log (startup + JSONL audit) |
+| `ddev bridge policy [ls\|allow\|deny\|rm\|reset]` | Your own rules, see [Host policy](#host-policy-your-own-rules) |
 | `ddev bridge register` / `unregister` / `list` / `version` | As the names say |
 
 State: `~/.local/state/ddev-bridge/` (`bridge.log`, rotated at 10 MB; `bridge.pid`). Registry:
-`~/.config/ddev-bridge/projects.json` (token hashes and the `.ddev/` fingerprint only).
+`~/.config/ddev-bridge/projects.json` (token hashes and the `.ddev/` fingerprint only), host policy:
+`~/.config/ddev-bridge/policy`.
 
 Projects registered with an earlier bridge must be approved once: `ddev bridge approve`.
 
@@ -185,7 +227,9 @@ Environment overrides:
 ## Security notes
 - The bridge binds to loopback only. The project directory comes from the token, never from the request.
 - `ddev` is executed via argv with no shell, and `exec` is forced to `--raw`.
-- The audit log records both the requested argv and the argv actually run.
+- The audit log records both the requested argv and the argv actually run, and the host rule that decided.
+- Custom host commands (`.ddev/commands/host/`) run on the host with your SSH keys. The `.ddev/` approval
+  only covers their content; deny the ones that reach remote servers in the host policy.
 - **The checks are argv checks, not a network boundary.** The web container still has internet access.
   Code the agent writes to disk and then runs is not inspected: a script (`ddev exec ./x.sh`), composer
   scripts during `install`/`update`, phpunit bootstraps, PHP executed by drush, git hooks, cron fetching

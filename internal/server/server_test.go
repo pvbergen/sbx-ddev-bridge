@@ -322,3 +322,28 @@ func TestDrushListedOnlyWhenTheProjectIsFree(t *testing.T) {
 	}
 	<-first
 }
+
+func TestHostPolicy(t *testing.T) {
+	e := setup(t, time.Minute)
+	policyFile := filepath.Join(os.Getenv("DDEV_BRIDGE_CONFIG_DIR"), "policy")
+	os.WriteFile(policyFile, []byte("[demo]\ndeny drush cache:rebuild  # not today\nallow ddev exec curl\n"), 0o600)
+
+	res, _ := e.run(t, context.Background(), e.token, "drush", "cr")
+	if res.exit != proto.ExitDenied || !strings.Contains(res.denied, "policy:2: deny drush cache:rebuild): not today") {
+		t.Fatalf("deny: %+v", res)
+	}
+	res, _ = e.run(t, context.Background(), e.token, "exec", "curl", "x")
+	if res.exit != 0 || !strings.Contains(res.stdout, "argv=exec --raw -- curl x") {
+		t.Fatalf("override: %+v", res)
+	}
+	if !strings.Contains(e.audit.String(), `"host_rule":"`+policyFile+`:3: allow ddev exec curl","override":"curl is not allowed`) {
+		t.Fatalf("override not audited: %s", e.audit)
+	}
+
+	// Edits apply on the next request; an invalid file denies everything.
+	os.WriteFile(policyFile, []byte("allow drush *\n"), 0o600)
+	res, _ = e.run(t, context.Background(), e.token, "drush", "cr")
+	if res.exit != proto.ExitDenied || !strings.Contains(res.denied, "use % as the wildcard") {
+		t.Fatalf("invalid file: %+v", res)
+	}
+}

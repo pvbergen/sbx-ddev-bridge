@@ -38,6 +38,7 @@ Usage:
   ddev-bridge approve [dir]                    approve the current .ddev/ configuration after reviewing changes
   ddev-bridge unregister [dir]                 remove a project
   ddev-bridge list                             list registered projects
+  ddev-bridge policy ls|allow|deny|rm|reset … show or edit the host policy rules (see policy --help)
 `
 
 func main() {
@@ -61,6 +62,7 @@ func main() {
 			err = stop(*addr)
 		case "status":
 			running := status(*addr)
+			policySummary(os.Stdout)
 			listProjects()
 			if !running {
 				os.Exit(1)
@@ -154,6 +156,8 @@ func main() {
 		}
 	case "list":
 		listProjects()
+	case "policy":
+		os.Exit(policyCmd(os.Args[2:], os.Stdin, os.Stdout))
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:

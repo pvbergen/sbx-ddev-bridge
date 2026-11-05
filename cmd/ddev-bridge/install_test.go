@@ -94,3 +94,41 @@ func TestParseFlags(t *testing.T) {
 		t.Fatalf("no args: pos=%v err=%v", pos, err)
 	}
 }
+
+func TestRemoveGitignore(t *testing.T) {
+	// It reverses ensureGitignore and keeps every other line.
+	p := filepath.Join(t.TempDir(), ".gitignore")
+	orig := "vendor/\n# local\n.env\n"
+	os.WriteFile(p, []byte(orig), 0o644)
+	ensureGitignore(p)
+	os.WriteFile(p, append(must(os.ReadFile(p)), "node_modules/\n"...), 0o644) // a line added later
+	if removed, err := removeGitignore(p); err != nil || !removed {
+		t.Fatalf("removed=%v err=%v", removed, err)
+	}
+	if got := string(must(os.ReadFile(p))); got != orig+"node_modules/\n" {
+		t.Fatalf("got %q", got)
+	}
+
+	// No block, no change; a missing file is fine.
+	if removed, _ := removeGitignore(p); removed {
+		t.Fatal("second call must be a no-op")
+	}
+	if removed, err := removeGitignore(filepath.Join(t.TempDir(), ".gitignore")); removed || err != nil {
+		t.Fatalf("missing file: removed=%v err=%v", removed, err)
+	}
+
+	// A .gitignore holding only our block is emptied, not deleted.
+	q := filepath.Join(t.TempDir(), ".gitignore")
+	ensureGitignore(q)
+	removeGitignore(q)
+	if b, err := os.ReadFile(q); err != nil || len(b) != 0 {
+		t.Fatalf("want an empty file, got %q err=%v", b, err)
+	}
+}
+
+func must(b []byte, err error) []byte {
+	if err != nil {
+		panic(err)
+	}
+	return b
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,6 +32,9 @@ var gitignoreLines = []string{
 	"/.ddev/config.ddev-bridge.yaml",
 	"/.ddev/addon-metadata/ddev-bridge/",
 }
+
+// gitignoreHeader introduces the block ensureGitignore appends.
+const gitignoreHeader = "# ddev-bridge (per-developer install, not for the repository)"
 
 // defaultClient is the client next to this host binary in the add-on layout:
 // <dist>/host/<os>-<arch>/ddev-bridge -> <dist>/client/linux-<arch>/ddev-bridge-client.
@@ -110,7 +114,7 @@ func installProject(args []string) {
 	}
 }
 
-// uninstallProject reverses installProject (the .gitignore lines stay).
+// uninstallProject reverses installProject, including the .gitignore block.
 func uninstallProject(args []string) {
 	dir := "."
 	if len(args) > 0 {
@@ -134,6 +138,43 @@ func uninstallProject(args []string) {
 	os.Remove(filepath.Join(root, registry.TokenFile))
 	os.Remove(filepath.Join(root, registry.Dir)) // only if empty
 	fmt.Println("removed the sandbox client and token, unregistered the project")
+	if removed, err := removeGitignore(filepath.Join(root, ".gitignore")); err != nil {
+		fmt.Printf("could not clean .gitignore (%v); remove the ddev-bridge lines by hand\n", err)
+	} else if removed {
+		fmt.Println("removed the ddev-bridge lines from .gitignore")
+	}
+}
+
+// removeGitignore deletes the lines ensureGitignore adds (the header and the
+// entries, exactly as written) and keeps everything else. The file is kept even
+// if it ends up empty, because it may be tracked.
+func removeGitignore(path string) (bool, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	ours := map[string]bool{gitignoreHeader: true}
+	for _, l := range gitignoreLines {
+		ours[l] = true
+	}
+	trailing := strings.HasSuffix(string(data), "\n")
+	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	var keep []string
+	for _, l := range lines {
+		if !ours[strings.TrimSpace(l)] {
+			keep = append(keep, l)
+		}
+	}
+	if len(keep) == len(lines) {
+		return false, nil
+	}
+	out := strings.Join(keep, "\n")
+	if trailing && out != "" {
+		out += "\n"
+	}
+	return true, os.WriteFile(path, []byte(out), 0o644)
 }
 
 // copyAtomic copies src to dst via a temp file and rename, so a client that is
@@ -192,7 +233,7 @@ func ensureGitignore(path string) (bool, error) {
 		return false, err
 	}
 	defer f.Close()
-	_, err = fmt.Fprintf(f, "%s# ddev-bridge (per-developer install, not for the repository)\n%s\n", prefix, strings.Join(missing, "\n"))
+	_, err = fmt.Fprintf(f, "%s%s\n%s\n", prefix, gitignoreHeader, strings.Join(missing, "\n"))
 	return true, err
 }
 

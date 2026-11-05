@@ -19,7 +19,7 @@ restart, logs (also `-f`), snapshots, import/export-db, config, xdebug, and the 
 | Category | Denied |
 |---|---|
 | **Reaches the web** | `ddev pull`, `push`, `share`, `tunnel`, `auth`, `self-upgrade`, `add-on get`/`list` (except `--installed`), `get`, `utility download-images`/`test`. Drush site aliases (`@prod` …, except `@self`/`@none`), `sql:sync`, `rsync`, `ssh`, `pm:security`, `locale:check/update`, `self-update`, `browse`. In `exec`: `curl`, `wget`, `ssh`, `scp`, `rsync`, `nc`, `socat`, `telnet`, `ftp`, … and network `git` subcommands (`clone`, `fetch`, `pull`, `push`, `remote`, `submodule`, …). DB clients with `-h/--host`. |
-| **Host / other projects** | `poweroff`, `clean`, `delete`, `list`, `hostname`, `launch`, `mailpit`, host DB GUIs, `config global`, `--all`/`-a`, other project names as arguments, host paths outside the project (incl. via symlinks) for `import-db`/`export-db`/`import-files`, `composer global`/`self-update`/`config -g`. Unknown ddev subcommands (neither built-in nor a custom command). |
+| **Host / other projects** | `poweroff`, `clean`, `delete`, `list`, `hostname`, `launch`, `mailpit`, host DB GUIs, `config global`, `--all`/`-a`, other project names as arguments, host paths outside the project (incl. via symlinks) for `import-db`/`export-db`/`import-files`, `add-on remove` (runs the add-on's removal actions on the host), `composer global`/`self-update`/`config -g`. Unknown ddev subcommands (neither built-in nor a custom command). |
 | **Shell / eval** | `ddev ssh`; in `exec`: `bash`, `sh`, `zsh`, …, wrappers that run other programs (`env`, `sudo`, `xargs`, `timeout`, `nohup`, `awk`, `find -exec`, …), `php -r/-a`, `python -c`, `node -e`, `perl -e`, `ruby -e`, `npx`/`npm exec`/`yarn dlx`, `git -c`. Drush `php:eval`, `php:script`, `php:cli`. `composer exec`/`run-script`. SQL shell escapes (`\!`, `system`, `\o |`, `COPY … PROGRAM`). |
 
 The same tool rules apply to the ddev shortcuts (`ddev php`, `ddev mysql`, `ddev npm` …) and to
@@ -38,7 +38,7 @@ ddev bridge diff      # what changed since the last approval (exit 1 if anything
 git diff .ddev/       # review it
 ddev bridge approve   # shows the diff again, asks, and accepts the current state
 ```
-This also applies after the agent runs `ddev config …` or `ddev add-on remove` itself.
+This also applies after the agent runs `ddev config …` itself.
 
 Exit codes:
 - `126`: denied by policy (reason on stderr)

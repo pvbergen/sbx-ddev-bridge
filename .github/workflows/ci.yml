@@ -18,6 +18,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # No go.sum (stdlib only), so key the build cache on go.mod;
+          # otherwise setup-go skips caching and every run rebuilds the stdlib.
+          cache-dependency-path: go.mod
       # make package runs make test first, then builds all binaries and the
       # tarball. Nothing is uploaded; the release workflow publishes packages.
       - name: Test and test-build the add-on package

@@ -101,7 +101,16 @@ func checkDrush(p Project, args []string) Decision {
 	if why, ok := drushDenied[strings.ToLower(command)]; ok {
 		return deny("drush %s is not allowed: %s", command, why)
 	}
-	if drushSQLCommands[command] {
+	// drush also runs aliases and abbreviations (`php:ev`, `sql:sy`): check the
+	// command they resolve to.
+	canonical, d := resolveDrush(p, command)
+	if !d.Allowed {
+		return d
+	}
+	if why, ok := drushDenied[strings.ToLower(canonical)]; ok {
+		return deny("drush %s (%s) is not allowed: %s", command, canonical, why)
+	}
+	if drushSQLCommands[canonical] {
 		if d := checkSQLText(args); !d.Allowed {
 			return d
 		}

@@ -23,10 +23,11 @@ import (
 // Project is the context a request is checked against. It is filled in by the
 // server from the registry and the host, never from the request.
 type Project struct {
-	Name           string   // ddev project name of the registered project
-	Root           string   // absolute host path of the project
-	OtherProjects  []string // names of other ddev projects on this host
-	CustomCommands []string // custom ddev commands available to this project (project + global)
+	Name           string      // ddev project name of the registered project
+	Root           string      // absolute host path of the project
+	OtherProjects  []string    // names of other ddev projects on this host
+	CustomCommands []string    // custom ddev commands available to this project (project + global)
+	Drush          DrushLister // the project's drush commands, to resolve aliases and abbreviations
 }
 
 // Decision is the result of checking an argv.

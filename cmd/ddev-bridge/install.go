@@ -50,8 +50,8 @@ func defaultClient() string {
 	return filepath.Join(filepath.Dir(exe), "..", "..", "client", "linux-"+runtime.GOARCH, "ddev-bridge-client")
 }
 
-// installProject puts the client into <root>/.ddev-bridge/bin, updates .gitignore,
-// registers the project and approves its .ddev/.
+// installProject puts the client into <root>/.ddev-bridge/bin, updates .gitignore
+// and the Claude Code settings, registers the project and approves its .ddev/.
 func installProject(args []string) {
 	fs := flag.NewFlagSet("install-project", flag.ExitOnError)
 	client := fs.String("client", defaultClient(), "sandbox client binary to install")
@@ -89,6 +89,8 @@ func installProject(args []string) {
 		fmt.Println("added the ddev-bridge files (client, token, add-on config) to .gitignore")
 	}
 
+	installClaude(root)
+
 	reg, err := registry.Load()
 	if err != nil {
 		fatal(err)
@@ -114,7 +116,8 @@ func installProject(args []string) {
 	}
 }
 
-// uninstallProject reverses installProject, including the .gitignore block.
+// uninstallProject reverses installProject, including the .gitignore block and
+// the Claude Code settings.
 func uninstallProject(args []string) {
 	dir := "."
 	if len(args) > 0 {
@@ -143,6 +146,7 @@ func uninstallProject(args []string) {
 	} else if removed {
 		fmt.Println("removed the ddev-bridge lines from .gitignore")
 	}
+	uninstallClaude(root)
 }
 
 // removeGitignore deletes the lines ensureGitignore adds (the header and the

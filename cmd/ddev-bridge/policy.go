@@ -18,11 +18,13 @@ const policyUsage = `usage:
   ddev-bridge policy ls [--dir DIR]
   ddev-bridge policy allow|deny [--dir DIR] [--global] [--reason TEXT] <words…>
   ddev-bridge policy rm [--dir DIR] [N]
+  ddev-bridge policy reset [--dir DIR] [--global] [--yes]
 
 Rules match the start of a command: "drush sql:drop", "ddev get_dump", "ddev exec phpunit".
 % matches any text inside a word ("drush sql:%"); a lone % at the end matches any further
 words ("drush %"). Don't use *, the shell expands it. The last matching rule wins, also over
 the bridge's built-in denials. Without --global a rule applies to the project in DIR only.
+reset removes all rules of the project in DIR (its whole section), or with --global all global rules.
 `
 
 // policyCmd runs `ddev-bridge policy …` and returns the exit code.
@@ -36,15 +38,23 @@ func policyCmd(args []string, stdin io.Reader, stdout io.Writer) int {
 	dir := fs.String("dir", ".", "ddev project directory")
 	global := fs.Bool("global", false, "add the rule for every project")
 	reason := fs.String("reason", "", "reason shown to the agent when the rule denies")
-	maxPos := map[string]int{"ls": 0, "rm": 1, "allow": 1 << 20, "deny": 1 << 20}
+	yes := fs.Bool("yes", false, "reset without asking")
+	maxPos := map[string]int{"ls": 0, "rm": 1, "reset": 0, "allow": 1 << 20, "deny": 1 << 20}
 	n, known := maxPos[sub]
 	if !known {
 		fmt.Fprintf(os.Stderr, "ddev-bridge policy: unknown subcommand %q\n%s", sub, policyUsage)
 		return 2
 	}
 	pos, err := parseFlags(fs, args, n)
-	if err == nil && (*global || *reason != "") && sub != "allow" && sub != "deny" {
-		err = fmt.Errorf("--global and --reason only apply to allow and deny")
+	addRule := sub == "allow" || sub == "deny"
+	switch {
+	case err != nil:
+	case *global && !addRule && sub != "reset":
+		err = fmt.Errorf("--global only applies to allow, deny and reset")
+	case *reason != "" && !addRule:
+		err = fmt.Errorf("--reason only applies to allow and deny")
+	case *yes && sub != "reset":
+		err = fmt.Errorf("--yes only applies to reset")
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ddev-bridge policy %s: %v\n%s", sub, err, policyUsage)
@@ -128,6 +138,48 @@ func policyCmd(args []string, stdin io.Reader, stdout io.Writer) int {
 			return fail(err)
 		}
 		fmt.Fprintf(stdout, "removed %q from %s (%s:%d)\n", r.String(), sectionName(r.Section), r.File, r.Line)
+	case "reset":
+		section := project
+		if *global {
+			section = ""
+		}
+		var list []rules.Rule
+		for _, r := range f.Rules {
+			if r.Section == section {
+				list = append(list, r)
+			}
+		}
+		if len(list) == 0 {
+			fmt.Fprintf(stdout, "no rules in %s of %s\n", sectionName(section), path)
+			return 0
+		}
+		if !*yes {
+			if !isTerminal(stdin) {
+				return fail(fmt.Errorf("pass --yes to reset without a terminal"))
+			}
+			fmt.Fprintf(stdout, "%s in %s:\n", sectionName(section), path)
+			for _, r := range list {
+				fmt.Fprintf(stdout, "  %s\n", r.String())
+			}
+			fmt.Fprintf(stdout, "Remove these %d rules? [y/N] ", len(list))
+			line, _ := bufio.NewReader(stdin).ReadString('\n')
+			if a := strings.ToLower(strings.TrimSpace(line)); a != "y" && a != "yes" {
+				fmt.Fprintln(stdout, "nothing removed")
+				return 0
+			}
+		}
+		removed, err := f.Reset(section)
+		if err != nil {
+			return fail(err)
+		}
+		if err := f.Save(); err != nil {
+			return fail(err)
+		}
+		noun := "rules"
+		if len(removed) == 1 {
+			noun = "rule"
+		}
+		fmt.Fprintf(stdout, "removed %d %s from %s (%s)\n", len(removed), noun, sectionName(section), path)
 	}
 	return 0
 }

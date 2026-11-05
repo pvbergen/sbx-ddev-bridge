@@ -38,7 +38,7 @@ Usage:
   ddev-bridge approve [dir]                    approve the current .ddev/ configuration after reviewing changes
   ddev-bridge unregister [dir]                 remove a project
   ddev-bridge list                             list registered projects
-  ddev-bridge policy ls|allow|deny|rm …        show or edit the host policy rules (see policy --help)
+  ddev-bridge policy ls|allow|deny|rm|reset … show or edit the host policy rules (see policy --help)
 `
 
 func main() {

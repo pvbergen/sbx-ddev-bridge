@@ -83,6 +83,8 @@ ddev bridge policy deny --reason "reaches live" ddev get_dump   # this project
 ddev bridge policy deny --global drush sql:drop             # every project
 ddev bridge policy allow ddev exec phpunit
 ddev bridge policy rm 2                                     # or `rm` to pick from the list
+ddev bridge policy reset                                    # all rules of this project (asks first)
+ddev bridge policy reset --global                           # all global rules
 ```
 Flags come before the rule. Adding a rule with the same words replaces it in place.
 
@@ -174,7 +176,7 @@ sbx policy rm network --resource localhost:7474
 | `ddev bridge approve [-y]` | Show the diff, ask, approve |
 | `ddev bridge ensure` / `stop` | Start in the background / stop |
 | `ddev bridge log [N]` | Last N lines of the bridge log (startup + JSONL audit) |
-| `ddev bridge policy [ls\|allow\|deny\|rm]` | Your own rules, see [Host policy](#host-policy-your-own-rules) |
+| `ddev bridge policy [ls\|allow\|deny\|rm\|reset]` | Your own rules, see [Host policy](#host-policy-your-own-rules) |
 | `ddev bridge register` / `unregister` / `list` / `version` | As the names say |
 
 State: `~/.local/state/ddev-bridge/` (`bridge.log`, rotated at 10 MB; `bridge.pid`). Registry:

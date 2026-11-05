@@ -35,6 +35,8 @@ func TestPolicyCmd(t *testing.T) {
 		{[]string{"rm"}, 1, ""}, // no number and no terminal
 		{[]string{"rm", "3"}, 0, `removed "allow drush %" from [demo]`},
 		{[]string{"rm", "3"}, 1, ""},
+		{[]string{"reset", "--reason", "x"}, 2, ""},
+		{[]string{"ls", "--yes"}, 2, ""},
 	} {
 		out, code := run(c.args...)
 		if code != c.code || !strings.Contains(out, c.out) {
@@ -44,5 +46,37 @@ func TestPolicyCmd(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(dir, "cfg", "policy"))
 	if string(b) != "deny drush sql:drop\n\n[demo]\ndeny ddev get_dump  # ssh to live\n" {
 		t.Errorf("file:\n%s", b)
+	}
+}
+
+func TestPolicyReset(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DDEV_BRIDGE_CONFIG_DIR", filepath.Join(dir, "cfg"))
+	proj := filepath.Join(dir, "proj")
+	os.MkdirAll(filepath.Join(proj, ".ddev"), 0o755)
+	os.WriteFile(filepath.Join(proj, ".ddev", "config.yaml"), []byte("name: demo\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "cfg"), 0o700)
+	os.WriteFile(filepath.Join(dir, "cfg", "policy"), []byte("deny drush sql:drop\n\n[demo]\ndeny ddev x\nallow drush %\n\n[other]\ndeny ddev y\n"), 0o600)
+
+	run := func(args ...string) (string, int) {
+		var out bytes.Buffer
+		code := policyCmd(append([]string{"reset", "--dir", proj}, args...), strings.NewReader(""), &out)
+		return out.String(), code
+	}
+	if _, code := run(); code != 1 { // no terminal, no --yes
+		t.Fatalf("reset without --yes: exit %d", code)
+	}
+	if out, code := run("--yes"); code != 0 || !strings.Contains(out, "removed 2 rules from [demo]") {
+		t.Fatalf("reset: %d %s", code, out)
+	}
+	if out, code := run("--global", "--yes"); code != 0 || !strings.Contains(out, "removed 1 rule from global") {
+		t.Fatalf("reset --global: %d %s", code, out)
+	}
+	if out, _ := run("--yes"); !strings.Contains(out, "no rules in [demo]") {
+		t.Fatalf("second reset: %s", out)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "cfg", "policy"))
+	if string(b) != "[other]\ndeny ddev y\n" {
+		t.Errorf("file:\n%q", b)
 	}
 }

@@ -145,3 +145,22 @@ func TestSetKeepsCommentsAndAddsGlobalBeforeSections(t *testing.T) {
 		t.Fatalf("content:\n%q", f.content())
 	}
 }
+
+func TestReset(t *testing.T) {
+	const in = "# header\ndeny drush sql:drop\n\n[a]\n# a's rules\ndeny ddev x\n\n[b]\nallow drush %\n\n[a]\ndeny ddev y\n"
+	f, _ := Parse("p", in)
+	removed, err := f.Reset("a")
+	if err != nil || len(removed) != 2 {
+		t.Fatal(removed, err)
+	}
+	if want := "# header\ndeny drush sql:drop\n\n[b]\nallow drush %\n"; f.content() != want {
+		t.Fatalf("project reset:\n%q", f.content())
+	}
+	removed, _ = f.Reset("")
+	if len(removed) != 1 || f.content() != "# header\n\n[b]\nallow drush %\n" {
+		t.Fatalf("global reset: %v\n%q", removed, f.content())
+	}
+	if removed, _ := f.Reset("missing"); len(removed) != 0 || f.content() != "# header\n\n[b]\nallow drush %\n" {
+		t.Fatalf("missing section changed the file: %q", f.content())
+	}
+}

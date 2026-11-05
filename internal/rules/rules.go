@@ -296,6 +296,48 @@ func (f *File) Remove(r Rule) error {
 	return f.reparse()
 }
 
+// Reset removes every rule of section: a project's whole [section] block
+// (comments included), or the global rule lines (comments before the first
+// section stay). It returns the removed rules. Call Save to write the file.
+func (f *File) Reset(section string) ([]Rule, error) {
+	var removed []Rule
+	drop := map[int]bool{}
+	for _, r := range f.Rules {
+		if r.Section == section {
+			removed = append(removed, r)
+			drop[r.Line-1] = true
+		}
+	}
+	if section != "" {
+		in := false
+		for i, l := range f.lines {
+			l = strings.TrimSpace(l)
+			if strings.HasPrefix(l, "[") {
+				in = l == "["+section+"]"
+			}
+			if in {
+				drop[i] = true
+			}
+		}
+	}
+	var kept []string
+	for i, l := range f.lines {
+		if drop[i] {
+			continue
+		}
+		// no double blank lines where a block was cut out
+		if strings.TrimSpace(l) == "" && (len(kept) == 0 || strings.TrimSpace(kept[len(kept)-1]) == "") {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	for len(kept) > 0 && strings.TrimSpace(kept[len(kept)-1]) == "" {
+		kept = kept[:len(kept)-1]
+	}
+	f.lines = kept
+	return removed, f.reparse()
+}
+
 func (f *File) reparse() error {
 	g, err := Parse(f.Path, f.content())
 	if err != nil {

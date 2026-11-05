@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #ddev-generated
 ## Description: Manage the ddev-bridge for sandboxed agents
-## Usage: bridge [status|ensure|stop|diff|approve [-y]|register|unregister|list|log [N]|version|policy ls|allow|deny|rm]
+## Usage: bridge [status|ensure|stop|diff|approve [-y]|register|unregister|list|log [N]|version|policy ls|allow|deny|rm|reset]
 ## Example: "ddev bridge status" or "ddev bridge approve" or "ddev bridge policy deny --reason 'reaches live' ddev get_dump"
 ## CanRunGlobally: true
 set -euo pipefail

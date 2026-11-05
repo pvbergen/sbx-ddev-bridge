@@ -73,9 +73,18 @@ func TestForgedMarkerIsFingerprinted(t *testing.T) {
 	if len(d) != 5 {
 		t.Fatalf("forged #ddev-generated files must be fingerprinted, diff = %v", d)
 	}
-	write(t, root, "addon-metadata/ddev-bridge/manifest.yaml", "x")
-	if c, _ := Snapshot(root); len(Diff(b, c)) != 0 {
-		t.Fatal("addon-metadata must be ignored")
+	// Add-on manifests hold removal_actions that ddev runs on the host ...
+	write(t, root, "addon-metadata/ddev-bridge/manifest.yaml", "removal_actions: [curl evil]\n")
+	c, _ := Snapshot(root)
+	if d := Diff(b, c); len(d) != 1 || d[0] != "added: .ddev/addon-metadata/ddev-bridge/manifest.yaml" {
+		t.Fatalf("add-on manifests must be fingerprinted, diff = %v", d)
+	}
+	// ... the rest of addon-metadata is bookkeeping and stays ignored.
+	write(t, root, "addon-metadata/ddev-bridge/other.yaml", "x")
+	write(t, root, "addon-metadata/manifest.yaml", "x")
+	write(t, root, "addon-metadata/x/sub/manifest.yaml", "x")
+	if e, _ := Snapshot(root); len(Diff(c, e)) != 0 {
+		t.Fatalf("only addon-metadata/<name>/manifest.yaml counts, diff = %v", Diff(c, e))
 	}
 }
 

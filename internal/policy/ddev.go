@@ -127,6 +127,9 @@ func checkDdev(p Project, argv []string) Decision {
 	case "add-on":
 		switch sub {
 		case "remove", "rm":
+			// ddev runs the removal_actions from .ddev/addon-metadata/<name>/manifest.yaml
+			// with bash on the host, and the agent can edit that file.
+			return deny("ddev add-on %s is not allowed: it runs the add-on's removal actions on the host; ask the developer to run it there", sub)
 		case "list", "ls":
 			if _, ok := hasFlag(args, "--installed"); !ok {
 				return deny("ddev add-on list is only allowed with --installed: %s", whyWeb)

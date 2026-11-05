@@ -143,3 +143,21 @@ func Diff(approved, current Fingerprint) []string {
 	sort.Strings(out)
 	return out
 }
+
+// AddonManifestHint explains a diff that only touches add-on manifests, which
+// ddev writes after every `ddev add-on get` or `remove` on the host, after the
+// add-on's own install actions have run. It returns "" for any other diff.
+func AddonManifestHint(diff []string) string {
+	if len(diff) == 0 {
+		return ""
+	}
+	for _, d := range diff {
+		_, path, _ := strings.Cut(d, ": ")
+		parts := strings.Split(strings.TrimPrefix(path, ".ddev/"), "/")
+		if !strings.HasPrefix(path, ".ddev/") || len(parts) != 3 || parts[0] != addonMetadata || parts[2] != "manifest.yaml" {
+			return ""
+		}
+	}
+	return "Only add-on manifests changed. That is expected after installing, updating or removing an add-on on the host " +
+		"(including ddev-bridge itself); if nobody did, review the change before approving"
+}

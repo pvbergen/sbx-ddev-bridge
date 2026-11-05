@@ -129,11 +129,15 @@ func (s *Server) check(proj *registry.Project, argv []string) policy.Decision {
 		return policy.Decision{Reason: "cannot read .ddev configuration: " + err.Error()}
 	}
 	if diff := integrity.Diff(proj.Approved, fp); len(diff) > 0 {
+		hint := integrity.AddonManifestHint(diff)
+		if hint != "" {
+			hint += ". "
+		}
 		if len(diff) > 10 {
 			diff = append(diff[:10], "…")
 		}
 		return policy.Decision{Reason: "the .ddev configuration changed since the developer approved it (" + strings.Join(diff, ", ") +
-			"). ddev reads hooks, compose files and custom commands from there, so the bridge is paused for this project. " +
+			"). ddev reads hooks, compose files and custom commands from there, so the bridge is paused for this project. " + hint +
 			"Ask the developer to review the change and run `ddev bridge approve` on the host"}
 	}
 	p := policy.Project{

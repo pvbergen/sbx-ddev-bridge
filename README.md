@@ -29,16 +29,18 @@ indirect calls (`ddev exec vendor/bin/drush …`, `ddev exec php vendor/bin/drus
 ddev reads hooks (`exec-host` runs **on the host**), extra docker-compose files (which can mount any
 host directory) and custom commands (including host commands) from `.ddev/`, and the agent can edit
 them. So the bridge fingerprints `.ddev/` when you register the project and **pauses** (every command
-is denied with the list of changed files) as soon as it differs. Ignored: ddev's generated dot-files (but not `.env*`), `db_snapshots/`, `addon-metadata/`, and
+is denied with the list of changed files) as soon as it differs. Ignored: ddev's generated dot-files (but not `.env*`), `db_snapshots/`, `addon-metadata/` except each add-on's `manifest.yaml`, and
 `#ddev-generated` files in folders ddev regenerates for the containers (traefik, nginx, apache,
 web-build, …). Config, compose, host-command and mutagen files are always checked, marker or not.
+Add-on manifests are checked because `ddev add-on remove` runs the `removal_actions` stored in them on the host.
 
 ```bash
 ddev bridge diff      # what changed since the last approval (exit 1 if anything did)
 git diff .ddev/       # review it
 ddev bridge approve   # shows the diff again, asks, and accepts the current state
 ```
-This also applies after the agent runs `ddev config …` itself.
+This also applies after the agent runs `ddev config …`, and after every `ddev add-on get` or `remove` on the
+host, including installing this add-on: ddev writes the add-on manifest after the install actions, so approve once.
 
 Exit codes:
 - `126`: denied by policy (reason on stderr)

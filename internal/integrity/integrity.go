@@ -2,9 +2,10 @@
 //
 // ddev reads hooks (including `exec-host`, which runs on the host), extra
 // docker-compose files (which can mount any host directory) and custom
-// commands (including host commands) from .ddev/. The agent can edit those
-// files from the sandbox, so the bridge only runs commands while .ddev/ matches
-// what the developer approved on the host.
+// commands (including host commands) from .ddev/, and `ddev add-on remove`
+// runs the removal actions stored in .ddev/addon-metadata/<name>/manifest.yaml
+// on the host. The agent can edit those files from the sandbox, so the bridge
+// only runs commands while .ddev/ matches what the developer approved on the host.
 package integrity
 
 import (
@@ -22,7 +23,21 @@ import (
 type Fingerprint map[string]string
 
 // Directories under .ddev that hold data or bookkeeping, not configuration.
-var skipDirs = map[string]bool{"db_snapshots": true, "import-db": true, "importdb": true, "addon-metadata": true}
+var skipDirs = map[string]bool{"db_snapshots": true, "import-db": true, "importdb": true}
+
+// addonMetadata is ddev's add-on bookkeeping. Only the per-add-on manifest
+// counts there: it holds the removal_actions ddev runs on the host.
+const addonMetadata = "addon-metadata"
+
+// addonMetadataSkip reports whether rel (slash-separated, under addon-metadata)
+// is ignored: everything except addon-metadata/<name>/manifest.yaml.
+func addonMetadataSkip(rel string, isDir bool) bool {
+	parts := strings.Split(rel, "/")
+	if isDir {
+		return len(parts) > 2 // addon-metadata/<name>/<deeper>
+	}
+	return len(parts) != 3 || parts[2] != "manifest.yaml"
+}
 
 // Dot-entries that still matter: env files feed containers and compose
 // interpolation, .global_commands may hold copies of host commands.
@@ -56,8 +71,9 @@ func markerSkippable(rel string) bool {
 }
 
 // Snapshot fingerprints <root>/.ddev. Skipped: dot-files except env files and
-// .global_commands (ddev's generated state), data directories, and
-// "#ddev-generated" files in directories ddev regenerates for the containers.
+// .global_commands (ddev's generated state), data directories, add-on
+// bookkeeping other than the manifests, and "#ddev-generated" files in
+// directories ddev regenerates for the containers.
 // Symlinks are recorded by their target.
 func Snapshot(root string) (Fingerprint, error) {
 	dir := filepath.Join(root, ".ddev")
@@ -72,6 +88,12 @@ func Snapshot(root string) (Fingerprint, error) {
 		}
 		name := d.Name()
 		if (strings.HasPrefix(name, ".") && !keepDot(name)) || (d.IsDir() && skipDirs[rel]) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if slash := filepath.ToSlash(rel); strings.HasPrefix(slash, addonMetadata+"/") && addonMetadataSkip(slash, d.IsDir()) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}

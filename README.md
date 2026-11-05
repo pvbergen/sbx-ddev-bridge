@@ -109,14 +109,15 @@ Build output (`dist/`, `ddev-bridge-dist/`) is gitignored. The binaries embed dd
 `#ddev-generated` signature, so `ddev add-on get` replaces them on update.
 
 ### CI and releases
-- `.github/workflows/ci.yml`: on every PR and push to `main`, runs `make test` and `make package`,
-  and uploads the tarball as a build artifact (kept 14 days) for trying a branch.
-- `.github/workflows/release.yml`: on a pushed tag `v*` (or run manually from the Actions tab with a
-  tag), runs the tests, builds the package with that version, checks the binaries' version and
-  marker, and publishes a GitHub release with `ddev-bridge.tar.gz` and its `.sha256`. Tags with a
-  suffix (`v2.2.0-rc1`) become pre-releases.
+- `.github/workflows/ci.yml`: on every PR and push to `main`, runs the tests and a test build of
+  the package (`make package`). Nothing is uploaded.
+- `.github/workflows/release.yml`: when a GitHub release is published, checks out its tag, runs the
+  tests, builds the package with that version, checks the binaries' version and marker, and attaches
+  `ddev-bridge.tar.gz` and its `.sha256` to the release.
 
-To release: `git tag v2.1.0 && git push origin v2.1.0`.
+To release: on GitHub, Releases → Draft a new release, create a tag like `v2.1.0` (`vX.Y.Z`, optionally
+`-rc1`; mark those as pre-release), publish. Or: `gh release create v2.1.0 --generate-notes`. The
+tarball appears on the release a few minutes later.
 
 Manual setup without the add-on:
 ```bash

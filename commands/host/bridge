@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#ddev-generated
+## Description: Manage the ddev-bridge for sandboxed agents
+## Usage: bridge [status|ensure|stop|diff|approve [-y]|register|unregister|list|log [N]|version]
+## Example: "ddev bridge status" or "ddev bridge diff" or "ddev bridge approve"
+## CanRunGlobally: true
+set -euo pipefail
+
+for d in "${DDEV_GLOBAL_DIR:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/ddev" "$HOME/.ddev"; do
+  [ -n "$d" ] && [ -d "$d/ddev-bridge-dist" ] && break
+done
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) arch=unknown ;; esac
+b="$d/ddev-bridge-dist/host/$os-$arch/ddev-bridge"
+if [ ! -x "$b" ]; then
+  echo "ddev-bridge binary not found at $b; reinstall with 'ddev add-on get <ddev-bridge repo>'" >&2
+  exit 1
+fi
+
+root="${DDEV_APPROOT:-$PWD}"
+cmd="${1:-status}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  status|ensure|stop|list|version)
+    exec "$b" "$cmd" "$@" ;;
+  diff|register|unregister)
+    exec "$b" "$cmd" "$root" ;;
+  approve)
+    if [ "${1:-}" != "-y" ]; then
+      if "$b" diff "$root"; then exit 0; fi
+      read -r -p "Approve these .ddev/ changes for agent use? [y/N] " answer
+      case "$answer" in y|Y|yes) ;; *) echo "not approved"; exit 1 ;; esac
+    fi
+    exec "$b" approve "$root" ;;
+  log)
+    state="${DDEV_BRIDGE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ddev-bridge}"
+    exec tail -n "${1:-50}" "$state/bridge.log" ;;
+  *)
+    echo "unknown subcommand '$cmd'; see 'ddev bridge --help'" >&2
+    exit 2 ;;
+esac

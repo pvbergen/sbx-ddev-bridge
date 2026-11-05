@@ -31,3 +31,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+
+# Build output: dev builds and the release tarball (make host/clients/package)
+dist/
+# Add-on binaries (make release); built by CI and shipped in the GitHub release tarball
+ddev-bridge-dist/

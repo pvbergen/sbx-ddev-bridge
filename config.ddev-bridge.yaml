@@ -1,0 +1,7 @@
+#ddev-generated
+# Installed by the ddev-bridge add-on: make sure the host bridge for sandboxed
+# agents is running whenever this project starts. Remove with
+# `ddev add-on remove ddev-bridge`.
+hooks:
+  post-start:
+    - exec-host: ddev bridge ensure

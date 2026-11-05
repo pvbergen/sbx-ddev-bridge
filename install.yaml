@@ -41,7 +41,13 @@ post_install_actions:
     chmod +x "$b" "$d"/ddev-bridge-dist/client/*/ddev-bridge-client "$d/commands/host/bridge"
     "$b" install-project "${DDEV_APPROOT:-..}"
     "$b" ensure
-    echo "ddev-bridge $("$b" version) installed. Run 'ddev restart' so the bridge starts with the project, then 'ddev bridge approve' once: ddev writes the add-on manifest after this step, and the bridge pauses until it is approved."
+    echo "ddev-bridge $("$b" version) installed."
+    echo
+    echo "  NEXT STEPS (on the host, in this project):"
+    echo "    ddev restart          # starts the bridge with the project"
+    echo "    ddev bridge approve   # once per install or update: approves the add-on manifest"
+    echo "                          # ddev writes after this step; until then the bridge is paused"
+    echo
 
 removal_actions:
   - |

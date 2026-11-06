@@ -12,10 +12,10 @@ import (
 func TestEnsureGitignore(t *testing.T) {
 	p := filepath.Join(t.TempDir(), ".gitignore")
 	os.WriteFile(p, []byte("vendor/"), 0o644) // no trailing newline
-	if added, err := ensureGitignore(p); err != nil || !added {
+	if added, err := ensureGitignore(atRoot(t, p)); err != nil || !added {
 		t.Fatalf("first call: added=%v err=%v", added, err)
 	}
-	if added, _ := ensureGitignore(p); added {
+	if added, _ := ensureGitignore(atRoot(t, p)); added {
 		t.Fatal("second call must be a no-op")
 	}
 	b, _ := os.ReadFile(p)
@@ -27,14 +27,14 @@ func TestEnsureGitignore(t *testing.T) {
 	// Existing entries, anchored or not, are respected.
 	q := filepath.Join(t.TempDir(), ".gitignore")
 	os.WriteFile(q, []byte(".ddev-bridge/\n.ddev/config.ddev-bridge.yaml\n/.ddev/addon-metadata/ddev-bridge/\n"), 0o644)
-	if added, _ := ensureGitignore(q); added {
+	if added, _ := ensureGitignore(atRoot(t, q)); added {
 		t.Fatal("all entries already present; nothing to add")
 	}
 
 	// An older install (client dir only) gets just the missing lines.
 	r := filepath.Join(t.TempDir(), ".gitignore")
 	os.WriteFile(r, []byte("/.ddev-bridge/\n"), 0o644)
-	if added, _ := ensureGitignore(r); !added {
+	if added, _ := ensureGitignore(atRoot(t, r)); !added {
 		t.Fatal("the add-on config lines are missing and must be added")
 	}
 	b, _ = os.ReadFile(r)
@@ -50,7 +50,9 @@ func TestCopyAtomicReplacesRunningFile(t *testing.T) {
 	os.WriteFile(dst, []byte("old"), 0o755)
 	old, _ := os.Open(dst) // stands in for a running binary
 	defer old.Close()
-	if err := copyAtomic(src, dst); err != nil {
+	r, _ := os.OpenRoot(dir)
+	defer r.Close()
+	if err := copyAtomic(r, src, "dst"); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(dst)
@@ -100,9 +102,9 @@ func TestRemoveGitignore(t *testing.T) {
 	p := filepath.Join(t.TempDir(), ".gitignore")
 	orig := "vendor/\n# local\n.env\n"
 	os.WriteFile(p, []byte(orig), 0o644)
-	ensureGitignore(p)
+	ensureGitignore(atRoot(t, p))
 	os.WriteFile(p, append(must(os.ReadFile(p)), "node_modules/\n"...), 0o644) // a line added later
-	if removed, err := removeGitignore(p); err != nil || !removed {
+	if removed, err := removeGitignore(atRoot(t, p)); err != nil || !removed {
 		t.Fatalf("removed=%v err=%v", removed, err)
 	}
 	if got := string(must(os.ReadFile(p))); got != orig+"node_modules/\n" {
@@ -110,20 +112,32 @@ func TestRemoveGitignore(t *testing.T) {
 	}
 
 	// No block, no change; a missing file is fine.
-	if removed, _ := removeGitignore(p); removed {
+	if removed, _ := removeGitignore(atRoot(t, p)); removed {
 		t.Fatal("second call must be a no-op")
 	}
-	if removed, err := removeGitignore(filepath.Join(t.TempDir(), ".gitignore")); removed || err != nil {
+	if removed, err := removeGitignore(atRoot(t, filepath.Join(t.TempDir(), ".gitignore"))); removed || err != nil {
 		t.Fatalf("missing file: removed=%v err=%v", removed, err)
 	}
 
 	// A .gitignore holding only our block is emptied, not deleted.
 	q := filepath.Join(t.TempDir(), ".gitignore")
-	ensureGitignore(q)
-	removeGitignore(q)
+	ensureGitignore(atRoot(t, q))
+	removeGitignore(atRoot(t, q))
 	if b, err := os.ReadFile(q); err != nil || len(b) != 0 {
 		t.Fatalf("want an empty file, got %q err=%v", b, err)
 	}
+}
+
+// atRoot splits an absolute test path into the filesystem root and the rest,
+// for the functions that write through os.Root.
+func atRoot(t *testing.T, path string) (*os.Root, string) {
+	t.Helper()
+	r, err := os.OpenRoot("/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.Close() })
+	return r, strings.TrimPrefix(path, "/")
 }
 
 func must(b []byte, err error) []byte {

@@ -194,6 +194,7 @@ make release    # add-on binaries in ddev-bridge-dist/ (VERSION=… optional)
 make package    # release + dist/ddev-bridge.tar.gz, the installable add-on
 make clean      # remove all build output
 ```
+Needs Go 1.25 or newer (`os.Root`); the binaries are static, the macOS ones need macOS 12 or newer.
 Build output (`dist/`, `ddev-bridge-dist/`) is gitignored. The binaries embed ddev's
 `#ddev-generated` signature, so `ddev add-on get` replaces them on update.
 
@@ -230,6 +231,9 @@ Environment overrides:
 - The bridge binds to loopback only. The project directory comes from the token, never from the request.
 - `ddev` is executed via argv with no shell, and `exec` is forced to `--raw`.
 - The audit log records both the requested argv and the argv actually run, and the host rule that decided.
+- Install and uninstall write into the project (client, token, `.gitignore`, `.claude/settings.local.json`)
+  only through Go's `os.Root`: a symlink the agent planted to lead out of the project (e.g.
+  `.ddev-bridge/bin → ~/bin`) makes the install fail instead of writing on the host.
 - Custom host commands (`.ddev/commands/host/`) run on the host with your SSH keys. The `.ddev/` approval
   only covers their content; deny the ones that reach remote servers in the host policy.
 - **The checks are argv checks, not a network boundary.** The web container still has internet access.

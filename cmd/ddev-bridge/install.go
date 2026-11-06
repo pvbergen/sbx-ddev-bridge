@@ -2,10 +2,13 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,31 +68,24 @@ func installProject(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-
-	bin := filepath.Join(root, BinDir)
-	if err := os.MkdirAll(bin, 0o755); err != nil {
+	r, err := os.OpenRoot(root)
+	if err != nil {
 		fatal(err)
 	}
-	dst := filepath.Join(bin, "ddev-bridge-client")
-	if err := copyAtomic(*client, dst); err != nil {
-		fatal(fmt.Errorf("install client: %w", err))
-	}
-	for _, name := range []string{"ddev", "drush"} {
-		link := filepath.Join(bin, name)
-		os.Remove(link)
-		if err := os.Symlink("ddev-bridge-client", link); err != nil {
-			fatal(err)
-		}
-	}
-	fmt.Printf("installed sandbox client in %s (ddev, drush)\n", bin)
+	defer r.Close()
 
-	if added, err := ensureGitignore(filepath.Join(root, ".gitignore")); err != nil {
+	if err := installClient(r, *client); err != nil {
 		fatal(err)
+	}
+	fmt.Printf("installed sandbox client in %s (ddev, drush)\n", filepath.Join(root, BinDir))
+
+	if added, err := ensureGitignore(r, ".gitignore"); err != nil {
+		fatal(confined(".gitignore", err))
 	} else if added {
 		fmt.Println("added the ddev-bridge files (client, token, add-on config) to .gitignore")
 	}
 
-	installClaude(root)
+	installClaude(r)
 
 	reg, err := registry.Load()
 	if err != nil {
@@ -134,26 +130,68 @@ func uninstallProject(args []string) {
 	if err := reg.Unregister(root); err != nil {
 		fmt.Println(err)
 	}
-	for _, n := range []string{"ddev", "drush", "ddev-bridge-client"} {
-		os.Remove(filepath.Join(root, BinDir, n))
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		fmt.Printf("%v; nothing to remove in the project\n", err)
+		return
 	}
-	os.Remove(filepath.Join(root, BinDir))
-	os.Remove(filepath.Join(root, registry.TokenFile))
-	os.Remove(filepath.Join(root, registry.Dir)) // only if empty
+	defer r.Close()
+	removeClient(r)
 	fmt.Println("removed the sandbox client and token, unregistered the project")
-	if removed, err := removeGitignore(filepath.Join(root, ".gitignore")); err != nil {
-		fmt.Printf("could not clean .gitignore (%v); remove the ddev-bridge lines by hand\n", err)
+	if removed, err := removeGitignore(r, ".gitignore"); err != nil {
+		fmt.Printf("could not clean .gitignore (%v); remove the ddev-bridge lines by hand\n", confined(".gitignore", err))
 	} else if removed {
 		fmt.Println("removed the ddev-bridge lines from .gitignore")
 	}
-	uninstallClaude(root)
+	uninstallClaude(r)
+}
+
+// installClient copies the client into .ddev-bridge/bin and points the ddev
+// and drush links at it. All writes go through r: the sandbox controls the
+// project tree, and a symlink out of it (e.g. .ddev-bridge/bin -> ~/bin) must
+// fail instead of writing elsewhere on the host.
+func installClient(r *os.Root, client string) error {
+	if err := r.MkdirAll(BinDir, 0o755); err != nil {
+		return confined(BinDir, err)
+	}
+	if err := copyAtomic(r, client, filepath.Join(BinDir, "ddev-bridge-client")); err != nil {
+		return confined(BinDir, fmt.Errorf("install client: %w", err))
+	}
+	for _, name := range []string{"ddev", "drush"} {
+		link := filepath.Join(BinDir, name)
+		if err := r.Remove(link); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return confined(link, err)
+		}
+		if err := r.Symlink("ddev-bridge-client", link); err != nil {
+			return confined(link, err)
+		}
+	}
+	return nil
+}
+
+// removeClient deletes the client, its links and the token, and the
+// directories if they end up empty. Errors are ignored: whatever is left is
+// harmless, and r keeps the removals inside the project.
+func removeClient(r *os.Root) {
+	for _, n := range []string{"ddev", "drush", "ddev-bridge-client"} {
+		r.Remove(filepath.Join(BinDir, n))
+	}
+	r.Remove(BinDir)
+	r.Remove(registry.TokenFile)
+	r.Remove(registry.Dir) // only if empty
+}
+
+// confined explains an error from a write through os.Root, which most often
+// means a symlink that leads out of the project.
+func confined(path string, err error) error {
+	return fmt.Errorf("%s: %w (writes stay inside the project; is a part of this path a symlink out of it?)", path, err)
 }
 
 // removeGitignore deletes the lines ensureGitignore adds (the header and the
 // entries, exactly as written) and keeps everything else. The file is kept even
 // if it ends up empty, because it may be tracked.
-func removeGitignore(path string) (bool, error) {
-	data, err := os.ReadFile(path)
+func removeGitignore(r *os.Root, path string) (bool, error) {
+	data, err := r.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
@@ -178,22 +216,25 @@ func removeGitignore(path string) (bool, error) {
 	if trailing && out != "" {
 		out += "\n"
 	}
-	return true, os.WriteFile(path, []byte(out), 0o644)
+	return true, r.WriteFile(path, []byte(out), 0o644)
 }
 
-// copyAtomic copies src to dst via a temp file and rename, so a client that is
-// running in a sandbox is never overwritten in place.
-func copyAtomic(src, dst string) error {
+// copyAtomic copies src (a host path) to dst inside r via a temp file and
+// rename, so a client that is running in a sandbox is never overwritten in place.
+func copyAtomic(r *os.Root, src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	tmp, err := os.CreateTemp(filepath.Dir(dst), ".ddev-bridge-client-*")
+	b := make([]byte, 8)
+	rand.Read(b)
+	tmpName := filepath.Join(filepath.Dir(dst), ".ddev-bridge-client-"+hex.EncodeToString(b))
+	tmp, err := r.OpenFile(tmpName, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer r.Remove(tmpName)
 	if _, err := io.Copy(tmp, in); err != nil {
 		tmp.Close()
 		return err
@@ -205,13 +246,13 @@ func copyAtomic(src, dst string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), dst)
+	return r.Rename(tmpName, dst)
 }
 
 // ensureGitignore appends the bridge entries that are missing.
-func ensureGitignore(path string) (bool, error) {
+func ensureGitignore(r *os.Root, path string) (bool, error) {
 	have := map[string]bool{}
-	if f, err := os.Open(path); err == nil {
+	if f, err := r.Open(path); err == nil {
 		sc := bufio.NewScanner(f)
 		for sc.Scan() {
 			have[strings.TrimSpace(sc.Text())] = true
@@ -227,12 +268,12 @@ func ensureGitignore(path string) (bool, error) {
 	if len(missing) == 0 {
 		return false, nil
 	}
-	data, _ := os.ReadFile(path)
+	data, _ := r.ReadFile(path)
 	prefix := ""
 	if len(data) > 0 && data[len(data)-1] != '\n' {
 		prefix = "\n"
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := r.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return false, err
 	}

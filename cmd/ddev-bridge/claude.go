@@ -52,8 +52,8 @@ func claudeSnippet() string {
 }
 
 // loadSettings reads path into a map; a missing file is an empty map.
-func loadSettings(path string) (map[string]any, bool, error) {
-	data, err := os.ReadFile(path)
+func loadSettings(r *os.Root, path string) (map[string]any, bool, error) {
+	data, err := r.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]any{}, false, nil
 	} else if err != nil {
@@ -102,7 +102,7 @@ func isOurHook(h any) bool {
 	return ok && o["command"] == claudeHookCommand
 }
 
-func writeSettings(path string, m map[string]any) error {
+func writeSettings(r *os.Root, path string, m map[string]any) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
@@ -110,16 +110,16 @@ func writeSettings(path string, m map[string]any) error {
 	if err := enc.Encode(m); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := r.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	return r.WriteFile(path, buf.Bytes(), 0o644)
 }
 
 // mergeClaudeSettings adds the SessionStart hook and the ask rules that are
 // missing. It writes only if something changed.
-func mergeClaudeSettings(path string) (bool, error) {
-	m, _, err := loadSettings(path)
+func mergeClaudeSettings(r *os.Root, path string) (bool, error) {
+	m, _, err := loadSettings(r, path)
 	if err != nil {
 		return false, err
 	}
@@ -175,14 +175,14 @@ func mergeClaudeSettings(path string) (bool, error) {
 	if !changed {
 		return false, nil
 	}
-	return true, writeSettings(path, m)
+	return true, writeSettings(r, path, m)
 }
 
 // removeClaudeSettings removes exactly what mergeClaudeSettings adds, drops
 // containers it leaves empty, and deletes the file (and an empty .claude/) if
 // nothing else is left.
-func removeClaudeSettings(path string) (bool, error) {
-	m, exists, err := loadSettings(path)
+func removeClaudeSettings(r *os.Root, path string) (bool, error) {
+	m, exists, err := loadSettings(r, path)
 	if err != nil || !exists {
 		return false, err
 	}
@@ -272,32 +272,31 @@ func removeClaudeSettings(path string) (bool, error) {
 		return false, nil
 	}
 	if len(m) == 0 {
-		if err := os.Remove(path); err != nil {
+		if err := r.Remove(path); err != nil {
 			return false, err
 		}
-		os.Remove(filepath.Dir(path)) // only if empty
+		r.Remove(filepath.Dir(path)) // only if empty
 		return true, nil
 	}
-	return true, writeSettings(path, m)
+	return true, writeSettings(r, path, m)
 }
 
 // installClaude and uninstallClaude report the result of the merge; a file
 // they can't edit is left untouched with instructions instead.
-func installClaude(root string) {
-	path := filepath.Join(root, claudeSettings)
-	changed, err := mergeClaudeSettings(path)
+func installClaude(r *os.Root) {
+	changed, err := mergeClaudeSettings(r, claudeSettings)
 	switch {
 	case errors.Is(err, errClaudeSettings):
 		fmt.Printf("%s is not valid settings JSON; left it untouched. For the Claude Code sandbox hook, merge in:\n%s\n", claudeSettings, claudeSnippet())
 	case err != nil:
-		fmt.Printf("could not update %s (%v); merge in by hand:\n%s\n", claudeSettings, err, claudeSnippet())
+		fmt.Printf("could not update %s (%v); merge in by hand:\n%s\n", claudeSettings, confined(claudeSettings, err), claudeSnippet())
 	case changed:
 		fmt.Printf("added the Claude Code sandbox hook and ask rules to %s\n", claudeSettings)
 	}
 }
 
-func uninstallClaude(root string) {
-	changed, err := removeClaudeSettings(filepath.Join(root, claudeSettings))
+func uninstallClaude(r *os.Root) {
+	changed, err := removeClaudeSettings(r, claudeSettings)
 	switch {
 	case err != nil:
 		fmt.Printf("could not clean %s (%v); remove the ddev-bridge hook and ask rules by hand:\n%s\n", claudeSettings, err, claudeSnippet())

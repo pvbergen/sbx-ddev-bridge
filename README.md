@@ -60,7 +60,7 @@ The bridge reads it on every request. Manage it with `ddev bridge policy` or edi
 deny  drush sql:drop               # the reason after # is shown to the agent
 allow ddev composer %
 
-[orell-fuessli]                    # only this ddev project
+[my-project]                       # only this ddev project
 deny  ddev get_dump                # ssh/rsync to the live server
 ```
 

@@ -11,7 +11,7 @@ const sample = `# host policy
 deny  drush sql:drop   # ask the developer
 allow ddev composer %
 
-[orell-fuessli]
+[my-project]
 deny ddev get_dump	# ssh to live
 [other]
 allow drush %
@@ -29,7 +29,7 @@ func TestParse(t *testing.T) {
 	want := []string{
 		"|deny drush sql:drop|ask the developer",
 		"|allow ddev composer %|",
-		"orell-fuessli|deny ddev get_dump|ssh to live",
+		"my-project|deny ddev get_dump|ssh to live",
 		"other|allow drush %|",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -39,7 +39,7 @@ func TestParse(t *testing.T) {
 		t.Errorf("line = %d, want 6", f.Rules[2].Line)
 	}
 	var order []string
-	for _, r := range f.For("orell-fuessli") {
+	for _, r := range f.For("my-project") {
 		order = append(order, r.Pattern())
 	}
 	if strings.Join(order, ",") != "drush sql:drop,ddev composer %,ddev get_dump" {

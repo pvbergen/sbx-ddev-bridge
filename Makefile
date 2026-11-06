@@ -6,7 +6,7 @@ GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 DIST    := ddev-bridge-dist
 PKG     := dist/ddev-bridge.tar.gz
 # Files that make up the installable add-on (plus $(DIST)/ with the binaries).
-ADDON   := install.yaml config.ddev-bridge.yaml commands README.md LICENSE
+ADDON   := install.sh install.yaml config.ddev-bridge.yaml commands README.md LICENSE
 
 all: test host clients
 

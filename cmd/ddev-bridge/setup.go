@@ -302,6 +302,9 @@ func runSetup(o setupOpts, out io.Writer) error {
 	}
 
 	client := filepath.Join(dstDist, "client", "linux-"+runtime.GOARCH, "ddev-bridge-client")
+	if len(reg.Projects) == 0 {
+		fmt.Fprintln(out, "next: in each project the agent may use, run `ddev bridge enable`")
+	}
 	return refreshClients(reg, client, out)
 }
 

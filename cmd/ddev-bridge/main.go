@@ -26,6 +26,7 @@ const usage = `ddev-bridge — host-side bridge for sandboxed agents
 Usage:
   ddev-bridge serve [--addr 127.0.0.1:7474]   run the bridge in the foreground
   ddev-bridge setup [--global-dir dir]         install or update the bridge for this machine (run by install.sh)
+  ddev-bridge uninstall [--global-dir dir]     remove the machine-wide install (after disabling every project)
   ddev-bridge ensure [--addr …] [--project dir]
                                                start the bridge in the background unless this version already runs;
                                                with --project, only if that project is enabled (the ddev hook)
@@ -85,6 +86,8 @@ func main() {
 		}
 	case "setup":
 		setupCmd(os.Args[2:])
+	case "uninstall":
+		uninstallCmd(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version)
 	case "--addon-marker":

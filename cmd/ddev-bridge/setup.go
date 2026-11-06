@@ -436,3 +436,73 @@ func sbxAllow(out io.Writer) {
 	}
 	fmt.Fprintln(out, "sbx: sandboxes may reach the bridge on localhost:7474")
 }
+
+func uninstallCmd(args []string) {
+	fs := flag.NewFlagSet("uninstall", flag.ExitOnError)
+	globalDir := fs.String("global-dir", "", "ddev's global config dir (default: as ddev finds it)")
+	mustParse(fs, args, 0, "[--global-dir dir]")
+	if *globalDir == "" {
+		d, err := ddevGlobalDir()
+		if err != nil {
+			fatal(err)
+		}
+		*globalDir = d
+	}
+	if err := runUninstall(*globalDir, defaultAddr, true, os.Stdout); err != nil {
+		fatal(err)
+	}
+}
+
+// runUninstall removes the machine-wide install. It refuses while projects
+// are enabled, since their clients would be left without a bridge. The
+// registry, host policy and logs stay.
+func runUninstall(globalDir, addr string, daemon bool, out io.Writer) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	if len(reg.Projects) > 0 {
+		var b strings.Builder
+		for _, p := range reg.Projects {
+			fmt.Fprintf(&b, "\n  %s\t%s", p.Name, p.Root)
+		}
+		return fmt.Errorf("projects are still enabled; run `ddev bridge disable` in each (or `ddev-bridge disable <dir>` for a removed one) first:%s", b.String())
+	}
+	if daemon {
+		if err := stop(addr); err != nil {
+			return err
+		}
+	}
+
+	cfgPath := filepath.Join(globalDir, globalCfg)
+	if cfg, err := os.ReadFile(cfgPath); err == nil {
+		if newCfg, removed := removeGlobalHook(cfg); removed {
+			if err := writeKeepingLink(cfgPath, newCfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "removed the post-start hook from %s\n", cfgPath)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	cmd := filepath.Join(globalDir, filepath.FromSlash(hostCommand))
+	if err := os.Remove(cmd); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(globalDir, distDir)); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "removed ddev-bridge from %s\n", globalDir)
+
+	kept := []string{}
+	if p, err := registry.Path(); err == nil {
+		kept = append(kept, filepath.Dir(p)+" (registry, host policy)")
+	}
+	if daemon {
+		if d, err := stateDir(); err == nil {
+			kept = append(kept, d+" (audit log)")
+		}
+	}
+	fmt.Fprintf(out, "kept: %s\nthe sbx rule stays too: sbx policy rm network --resource localhost:7474\n", strings.Join(kept, ", "))
+	return nil
+}

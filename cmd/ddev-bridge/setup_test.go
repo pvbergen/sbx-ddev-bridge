@@ -191,3 +191,43 @@ func TestSetupReportsBadProjects(t *testing.T) {
 		t.Fatalf("gone project not reported:\n%s", out.String())
 	}
 }
+
+func TestUninstall(t *testing.T) {
+	t.Setenv("DDEV_BRIDGE_CONFIG_DIR", t.TempDir())
+	global := t.TempDir()
+	cfgPath := filepath.Join(global, globalCfg)
+	os.WriteFile(cfgPath, []byte(ddevInstructions), 0o644)
+	proj := registeredProject(t)
+	if err := runSetup(setupOpts{src: fakePackage(t, "v1"), globalDir: global, noSbx: true}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Refused while a project is enabled; nothing removed.
+	err := runUninstall(global, defaultAddr, false, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), proj) {
+		t.Fatalf("want a refusal naming the project, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(global, distDir)); err != nil {
+		t.Fatal("refused uninstall must not remove anything")
+	}
+
+	reg, _ := registry.Load()
+	reg.Unregister(proj)
+	// ddev rewrote the config meanwhile: comment gone, re-indented.
+	os.WriteFile(cfgPath, []byte("router_http_port: \"80\"\n"+ddevMarshalled), 0o644)
+	if err := runUninstall(global, defaultAddr, false, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(cfgPath); string(b) != "router_http_port: \"80\"\n" {
+		t.Fatalf("hook not removed: %q", b)
+	}
+	for _, p := range []string{distDir, filepath.FromSlash(hostCommand)} {
+		if _, err := os.Stat(filepath.Join(global, p)); !os.IsNotExist(err) {
+			t.Fatalf("%s left behind", p)
+		}
+	}
+	// Running it again is fine.
+	if err := runUninstall(global, defaultAddr, false, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}

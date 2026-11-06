@@ -1,7 +1,7 @@
 name: Release
 
 # Publish a release on GitHub (Releases → Draft a new release, tag like v2.1.0).
-# This workflow then builds the add-on for that tag and attaches
+# This workflow then builds the package for that tag and attaches
 # ddev-bridge.tar.gz and its .sha256 to the release.
 on:
   release:
@@ -34,9 +34,7 @@ jobs:
       - name: Check the binaries
         run: |
           ./ddev-bridge-dist/host/linux-amd64/ddev-bridge version | grep -qx "$TAG"
-          for f in ddev-bridge-dist/host/*/ddev-bridge ddev-bridge-dist/client/*/ddev-bridge-client; do
-            grep -aq '#ddev-generated' "$f" || { echo "missing add-on marker: $f"; exit 1; }
-          done
+          tar -tvzf dist/ddev-bridge.tar.gz ddev-bridge/install.sh | grep -q '^-rwx' || { echo "install.sh missing or not executable"; exit 1; }
           (cd dist && sha256sum ddev-bridge.tar.gz > ddev-bridge.tar.gz.sha256)
       - name: Attach the package to the release
         env:

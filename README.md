@@ -3,7 +3,7 @@
 Lets an AI agent running in a Docker sandbox (`sbx`) use ddev **freely for its own project** on the host,
 without moving ddev into the sandbox. The bridge refuses what would make ddev **reach the web**, **touch
 the host or other projects**, or **open a shell / evaluate inline code**.
-Packaged as a ddev add-on. Host: Linux, WSL2 (verified first) and macOS.
+Installed once per machine, enabled per project. Host: Linux, WSL2 (verified first) and macOS, ddev ≥ v1.25.5.
 
 ```
 sandbox: ddev / drush (client shim) ──HTTP──► host.docker.internal:7474
@@ -48,7 +48,8 @@ git diff .ddev/       # review it
 ddev bridge approve   # shows the diff again, asks, and accepts the current state
 ```
 This also applies after the agent runs `ddev config …`, and after every `ddev add-on get` or `remove` on the
-host, including installing this add-on: ddev writes the add-on manifest after the install actions, so approve once.
+host: ddev writes the add-on manifest after the install actions, so approve once. Installing or updating
+ddev-bridge itself doesn't touch `.ddev/`.
 
 ### Host policy (your own rules)
 Your own allow and deny rules live in a plain-text file next to the registry
@@ -99,45 +100,50 @@ Exit codes:
 
 Output is capped at 8 MiB per stream, and only one command runs per project at a time.
 
-## Install (ddev add-on)
-Once per project, on the host (Linux, WSL2 or macOS). The add-on ships as a release tarball that
-contains the prebuilt binaries (the repository itself has no binaries):
+## Install
+**Once per machine**, on the host (Linux, WSL2 or macOS; ddev ≥ v1.25.5). The release tarball contains
+the prebuilt binaries (the repository itself has none):
 ```bash
-cd ~/projects/my-d11-site
-# latest release (private repo, so download it with gh first)
+# latest release (private repo, so download it with gh)
 gh release download -R pvbergen/sbx-ddev-bridge -p ddev-bridge.tar.gz -D /tmp --clobber
-ddev add-on get /tmp/ddev-bridge.tar.gz
-ddev restart
+tar -xzf /tmp/ddev-bridge.tar.gz -C /tmp && /tmp/ddev-bridge/install.sh
 ```
-Other sources:
-- A specific version: add the tag, e.g. `gh release download v2.1.0 -R pvbergen/sbx-ddev-bridge …`.
-- A local clone: `make release` there, then `ddev add-on get /path/to/sbx-ddev-bridge`.
-- `ddev add-on get pvbergen/sbx-ddev-bridge` does **not** work: ddev fetches the source tarball,
-  which has no binaries.
+`install.sh` checks the ddev version and runs `ddev-bridge setup`, which:
+- puts the binaries in ddev's global dir (`~/.ddev/ddev-bridge-dist/`, or wherever ddev keeps it) and adds
+  the host command `ddev bridge`;
+- adds a global `post-start` hook to `global_config.yaml`: every `ddev start` runs `ddev bridge ensure`,
+  which starts the bridge in the background **for enabled projects** (and replaces an older version).
+  If `global_config.yaml` already has hooks of your own, setup stops and prints the task to add by hand.
+  A project with `skip_global_hooks: true` doesn't start the bridge; run `ddev bridge ensure` there;
+- runs `sbx policy allow network localhost:7474` if `sbx` is installed, or prints the command;
+- starts the bridge and updates the client in every enabled project.
 
-The add-on:
-- puts the binaries in ddev's global dir (`~/.ddev/ddev-bridge-dist/`) and adds the host command
-  `ddev bridge`. Nothing binary lands in the project's `.ddev/`.
-- installs the sandbox client as `.ddev-bridge/bin/{ddev-bridge-client,ddev,drush}`, matching your CPU,
-  and adds `/.ddev-bridge/` to `.gitignore`, together with the add-on's `.ddev/config.ddev-bridge.yaml`
-  and `.ddev/addon-metadata/ddev-bridge/`. The bridge is a per-developer install: a committed config
-  would run `ddev bridge ensure` on every teammate's `ddev start`, which fails without the add-on. If
-  these files are already tracked, untrack them with `git rm --cached`.
-- registers the project (token in `.ddev-bridge/token`) and approves the current `.ddev/`,
-  including its own `.ddev/config.ddev-bridge.yaml`.
-- adds a `post-start` hook, so every `ddev start` runs `ddev bridge ensure`. That starts the bridge
-  in the background unless the same version already runs, and replaces an older version.
-- runs `sbx policy allow network localhost:7474` if `sbx` is installed, or prints the command.
+**Updating** is the same download and `install.sh` again. Tokens and approvals stay.
+
+**Then, once per project** the agent may use (on the host, in the project):
+```bash
+ddev bridge enable
+```
+This:
+- installs the sandbox client as `.ddev-bridge/bin/{ddev-bridge-client,ddev,drush}` and adds
+  `/.ddev-bridge/` to `.gitignore`. Nothing goes into `.ddev/`;
+- registers the project (token in `.ddev-bridge/token`) and approves the current `.ddev/`;
 - adds a Claude Code overlay to `.claude/settings.local.json` (see [Agents](#agents)), keeping
-  everything else in the file. If the file isn't valid JSON, it is left alone and the snippet is printed.
+  everything else in the file. If the file isn't valid JSON, it is left alone and the snippet is printed;
+- starts the bridge. No restart needed.
 
-Updating is the same download and `ddev add-on get` again. Removing: see [Uninstall](#uninstall).
+All writes into the project go through `os.Root`: if a path the bridge writes to is a symlink out of the
+project, `enable` (and `setup`'s client update) fails instead of writing elsewhere on the host.
+
+**From the old per-project add-on:** in each project, `ddev add-on remove ddev-bridge` first, then run
+`install.sh` once, then `ddev bridge enable` in each project. If the removal left `.ddev/` changes,
+`ddev bridge approve` once. `setup` lists projects that still have the old add-on.
 
 The sandbox must be in **direct mode**. In clone mode the client refuses to run, because host ddev
 wouldn't see the agent's edits.
 
 ### Agents
-**Claude Code** needs no setup. The add-on's overlay in `.claude/settings.local.json` has:
+**Claude Code** needs no setup. The overlay from `ddev bridge enable` in `.claude/settings.local.json` has:
 - a `SessionStart` hook, `ddev-bridge-client --session-start`. On the host it does nothing. In a sandbox
   it puts `.ddev-bridge/bin` on PATH (via `$CLAUDE_ENV_FILE`) and gives the agent the
   [agent guide](cmd/ddev-bridge-client/agent-guide.md) and whether the bridge is reachable;
@@ -149,24 +155,23 @@ wouldn't see the agent's edits.
 and give the agent the [agent guide](cmd/ddev-bridge-client/agent-guide.md) as instructions.
 
 ### Uninstall
-**From one repository** (on the host):
+**From one project** (on the host, in the project):
 ```bash
-ddev add-on remove ddev-bridge
-ddev restart
+ddev bridge disable
 ```
 This unregisters the project and removes `.ddev-bridge/` (client, symlinks, token), the ddev-bridge lines
-in `.gitignore`, the Claude Code overlay in `.claude/settings.local.json`, `.ddev/config.ddev-bridge.yaml`
-and `.ddev/addon-metadata/ddev-bridge/`. The binaries in
-the global dir stay for other projects. If the global binary is already gone, the removal prints what to do
-by hand: delete those files and the `.gitignore` block yourself, and run `ddev bridge unregister` if the
-command still exists (otherwise drop the project from `~/.config/ddev-bridge/projects.json`).
+in `.gitignore` and the Claude Code overlay in `.claude/settings.local.json`. The bridge keeps running for
+other projects. For a project directory that's already gone: `ddev bridge disable` won't run there, so use
+the binary directly: `~/.ddev/ddev-bridge-dist/host/<os>-<arch>/ddev-bridge disable <dir>`.
 
-**From the machine** (after removing it from every repository; a repository that still has the add-on
-gets a failing `post-start` hook):
+**From the machine** (after `disable` in every project; it refuses otherwise and lists them):
 ```bash
-ddev bridge stop
-rm -rf ~/.ddev/ddev-bridge-dist ~/.ddev/commands/host/bridge   # or under $DDEV_GLOBAL_DIR / ~/.config/ddev
-rm -rf ~/.config/ddev-bridge ~/.local/state/ddev-bridge        # registry, log, PID
+~/.ddev/ddev-bridge-dist/host/<os>-<arch>/ddev-bridge uninstall   # or under ddev's global dir
+```
+This stops the bridge and removes the global hook, the host command and the binaries. It keeps the
+registry, host policy and log, and the sbx rule; to remove those too:
+```bash
+rm -rf ~/.config/ddev-bridge ~/.local/state/ddev-bridge        # registry, policy, log, PID
 sbx policy rm network --resource localhost:7474
 ```
 
@@ -174,9 +179,10 @@ sbx policy rm network --resource localhost:7474
 | Command | |
 |---|---|
 | `ddev bridge` / `status` | Running? Which version, PID, log, registered projects |
+| `ddev bridge enable` / `disable` | Enable this project for the agent / undo it |
 | `ddev bridge diff` | `.ddev/` changes awaiting approval (exit 1 if any, 2 on error) |
 | `ddev bridge approve [-y]` | Show the diff, ask, approve |
-| `ddev bridge ensure` / `stop` | Start in the background / stop |
+| `ddev bridge ensure` / `stop` | Start in the background (if this project is enabled) / stop |
 | `ddev bridge log [N]` | Last N lines of the bridge log (startup + JSONL audit) |
 | `ddev bridge policy [ls\|allow\|deny\|rm\|reset]` | Your own rules, see [Host policy](#host-policy-your-own-rules) |
 | `ddev bridge register` / `unregister` / `list` / `version` | As the names say |
@@ -190,34 +196,35 @@ Projects registered with an earlier bridge must be approved once: `ddev bridge a
 ## Development
 ```bash
 make            # vet + tests, dev builds in dist/
-make release    # add-on binaries in ddev-bridge-dist/ (VERSION=… optional)
-make package    # release + dist/ddev-bridge.tar.gz, the installable add-on
+make release    # binaries in ddev-bridge-dist/ (VERSION=… optional)
+make package    # release + dist/ddev-bridge.tar.gz, the installable package
 make clean      # remove all build output
 ```
 Needs Go 1.25 or newer (`os.Root`); the binaries are static, the macOS ones need macOS 12 or newer.
-Build output (`dist/`, `ddev-bridge-dist/`) is gitignored. The binaries embed ddev's
-`#ddev-generated` signature, so `ddev add-on get` replaces them on update.
+Build output (`dist/`, `ddev-bridge-dist/`) is gitignored. To install a local build: `make package`, then
+`tar -xzf dist/ddev-bridge.tar.gz -C /tmp && /tmp/ddev-bridge/install.sh`.
 
 ### CI and releases
 - `.github/workflows/ci.yml`: on every PR and push to `main`, runs the tests and a test build of
   the package (`make package`). Nothing is uploaded.
 - `.github/workflows/release.yml`: when a GitHub release is published, checks out its tag, runs the
-  tests, builds the package with that version, checks the binaries' version and marker, and attaches
+  tests, builds the package with that version, checks the binary's version and `install.sh`, and attaches
   `ddev-bridge.tar.gz` and its `.sha256` to the release.
 
 To release: on GitHub, Releases → Draft a new release, create a tag like `v2.1.0` (`vX.Y.Z`, optionally
 `-rc1`; mark those as pre-release), publish. Or: `gh release create v2.1.0 --generate-notes`. The
 tarball appears on the release a few minutes later.
 
-Manual setup without the add-on:
+Manual setup without the global install:
 ```bash
-ddev-bridge install-project --client dist/linux-amd64/ddev-bridge-client ~/projects/my-d11-site
+ddev-bridge enable --client dist/linux-amd64/ddev-bridge-client ~/projects/my-d11-site
 ddev-bridge serve             # foreground; or `ddev-bridge ensure` for the background
 ```
 
 Environment overrides:
 - In the sandbox: `DDEV_BRIDGE_URL` (default `http://host.docker.internal:7474`) and `DDEV_BRIDGE_TOKEN`.
-- On the host: `DDEV_BRIDGE_CONFIG_DIR`, `DDEV_BRIDGE_STATE_DIR`, `DDEV_GLOBAL_DIR`.
+- On the host: `DDEV_BRIDGE_CONFIG_DIR`, `DDEV_BRIDGE_STATE_DIR`. ddev's global dir follows ddev
+  (`DDEV_XDG_CONFIG_HOME`); `ddev-bridge setup|uninstall --global-dir` overrides it.
 
 ## Known limitations
 - **Cancel/timeout** kills the host-side process group (`ddev` → `docker exec`). A process already

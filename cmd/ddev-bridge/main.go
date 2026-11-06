@@ -25,13 +25,17 @@ const usage = `ddev-bridge — host-side bridge for sandboxed agents
 
 Usage:
   ddev-bridge serve [--addr 127.0.0.1:7474]   run the bridge in the foreground
-  ddev-bridge ensure [--addr …]                start the bridge in the background unless this version already runs
+  ddev-bridge setup [--global-dir dir]         install or update the bridge for this machine (run by install.sh)
+  ddev-bridge uninstall [--global-dir dir]     remove the machine-wide install (after disabling every project)
+  ddev-bridge ensure [--addr …] [--project dir]
+                                               start the bridge in the background unless this version already runs;
+                                               with --project, only if that project is enabled (the ddev hook)
   ddev-bridge stop [--addr …]                  stop the background bridge
   ddev-bridge status [--addr …]                show whether the bridge runs, and the registered projects
   ddev-bridge version                          print the version
-  ddev-bridge install-project [dir]            install the sandbox client into .ddev-bridge/bin, update
-                                               .gitignore, register (used by the ddev add-on)
-  ddev-bridge uninstall-project [dir]          remove the client and token, unregister
+  ddev-bridge enable [--no-sbx] [dir]          enable a project: sandbox client in .ddev-bridge/bin, token,
+                                               .gitignore, Claude Code overlay, register, approve .ddev/
+  ddev-bridge disable [dir]                    undo enable: remove the client, token and overlay, unregister
   ddev-bridge register [dir]                   register a ddev project (default: .), write its token
                                                and approve its current .ddev/ configuration
   ddev-bridge diff [dir]                       show .ddev/ changes awaiting approval (exit 1: changes, 2: error)
@@ -53,10 +57,19 @@ func main() {
 	case "ensure", "stop", "status":
 		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 		addr := fs.String("addr", defaultAddr, "bridge address")
-		mustParse(fs, os.Args[2:], 0, "[--addr …]")
+		var project *string
+		synopsis := "[--addr …]"
+		if os.Args[1] == "ensure" {
+			project = fs.String("project", "", "start only if this project is enabled")
+			synopsis = "[--addr …] [--project dir]"
+		}
+		mustParse(fs, os.Args[2:], 0, synopsis)
 		var err error
 		switch os.Args[1] {
 		case "ensure":
+			if *project != "" && !enabled(*project) {
+				return // the global hook runs for every ddev project
+			}
 			err = ensure(*addr)
 		case "stop":
 			err = stop(*addr)
@@ -71,14 +84,16 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	case "setup":
+		setupCmd(os.Args[2:])
+	case "uninstall":
+		uninstallCmd(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version)
-	case "--addon-marker":
-		fmt.Println(addonMarker)
-	case "install-project":
-		installProject(os.Args[2:])
-	case "uninstall-project":
-		uninstallProject(os.Args[2:])
+	case "enable", "install-project": // old names, used by the old add-on's actions
+		enableProject(os.Args[2:])
+	case "disable", "uninstall-project":
+		disableProject(os.Args[2:])
 	case "register", "unregister", "approve":
 		dir := "."
 		if len(os.Args) > 2 {
@@ -166,6 +181,16 @@ func main() {
 	}
 }
 
+// enabled reports whether dir is a registered project.
+func enabled(dir string) bool {
+	reg, err := registry.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, ok := reg.Find(dir)
+	return ok
+}
+
 func listProjects() {
 	reg, err := registry.Load()
 	if err != nil {
@@ -178,7 +203,7 @@ func listProjects() {
 
 // parseFlags parses args and returns the positional arguments (at most maxPos).
 // Go's flag package stops at the first non-flag argument, so a flag written
-// after it (`install-project ~/proj --no-sbx`) would be silently ignored;
+// after it (`enable ~/proj --no-sbx`) would be silently ignored;
 // that is reported as an error instead.
 func parseFlags(fs *flag.FlagSet, args []string, maxPos int) ([]string, error) {
 	if err := fs.Parse(args); err != nil {

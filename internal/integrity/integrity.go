@@ -171,5 +171,5 @@ func AddonManifestHint(diff []string) string {
 		}
 	}
 	return "Only add-on manifests changed. That is expected after installing, updating or removing an add-on on the host " +
-		"(including ddev-bridge itself); if nobody did, review the change before approving"
+		"(e.g. removing the old ddev-bridge add-on); if nobody did, review the change before approving"
 }

@@ -11,7 +11,7 @@ import (
 	"ddev-bridge/internal/registry"
 )
 
-// claudeSettings is the per-developer Claude Code settings file the add-on
+// claudeSettings is the per-developer Claude Code settings file `enable`
 // extends with its sandbox overlay. Only the entries below are added or
 // removed; everything else in the file is kept.
 var claudeSettings = filepath.Join(".claude", "settings.local.json")

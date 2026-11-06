@@ -9,3 +9,5 @@ var errUnsupported = errors.New("background mode is only supported on Linux, WSL
 func ensure(string) error { return errUnsupported }
 func stop(string) error   { return errUnsupported }
 func status(string) bool  { return false }
+
+func stateDir() (string, error) { return "", errUnsupported }

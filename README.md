@@ -29,11 +29,7 @@ sbx network policy, and starts the bridge. If ddev's `global_config.yaml` alread
 nothing is installed and the task to add by hand is printed.
 
 **Update:** the same two commands again. Tokens, approvals and your rules stay; enabled projects get the
-new client. Earlier versions added `/.ddev-bridge/` to the tracked `.gitignore`; the update moves it to
-`.git/info/exclude`, so commit the `.gitignore` change.
-
-**From the old per-project add-on:** run `ddev add-on remove ddev-bridge` in each project first, then
-install as above and enable each project. If the removal left `.ddev/` changes, `ddev bridge approve`.
+new client.
 
 ## Enable a project
 On the host, in each project the agent may use:

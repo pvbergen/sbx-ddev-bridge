@@ -90,8 +90,6 @@ func main() {
 		uninstallCmd(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version)
-	case "--addon-marker":
-		fmt.Println(addonMarker)
 	case "enable", "install-project": // old names, used by the old add-on's actions
 		enableProject(os.Args[2:])
 	case "disable", "uninstall-project":

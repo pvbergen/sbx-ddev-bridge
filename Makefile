@@ -5,8 +5,8 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 DIST    := ddev-bridge-dist
 PKG     := dist/ddev-bridge.tar.gz
-# Files that make up the installable add-on (plus $(DIST)/ with the binaries).
-ADDON   := install.sh install.yaml config.ddev-bridge.yaml commands README.md LICENSE
+# Files that make up the package (plus $(DIST)/ with the binaries).
+PKGFILES := install.sh commands README.md LICENSE
 
 all: test host clients
 
@@ -21,7 +21,7 @@ test:
 	go vet ./...
 	go test -race -count=1 ./...
 
-release: test    ## build the add-on binaries into ddev-bridge-dist/ (gitignored; CI does this)
+release: test    ## build the binaries into ddev-bridge-dist/ (gitignored; CI does this)
 	@rm -rf $(DIST)
 	@for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do \
 	  os=$${t%/*}; arch=$${t#*/}; \
@@ -34,9 +34,9 @@ release: test    ## build the add-on binaries into ddev-bridge-dist/ (gitignored
 	done
 	@du -sh $(DIST)
 
-package: release ## installable add-on tarball: dist/ddev-bridge.tar.gz (the GitHub release asset)
+package: release ## installable tarball: dist/ddev-bridge.tar.gz (the GitHub release asset)
 	@mkdir -p dist
-	tar -czf $(PKG) --transform 's,^,ddev-bridge/,' $(ADDON) $(DIST)
+	tar -czf $(PKG) --transform 's,^,ddev-bridge/,' $(PKGFILES) $(DIST)
 	@ls -lh $(PKG)
 
 clean:           ## remove all build output

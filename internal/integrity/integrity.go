@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -74,7 +75,10 @@ func markerSkippable(rel string) bool {
 // .global_commands (ddev's generated state), data directories, add-on
 // bookkeeping other than the manifests, and "#ddev-generated" files in
 // directories ddev regenerates for the containers.
-// Symlinks are recorded by their target.
+//
+// Symlinks are refused (except where the walk skips anyway): ddev follows them,
+// and a hash of the link would not cover what it points to, so an approved link
+// would let the sandbox change the target freely.
 func Snapshot(root string) (Fingerprint, error) {
 	dir := filepath.Join(root, ".ddev")
 	fp := Fingerprint{}
@@ -82,30 +86,32 @@ func Snapshot(root string) (Fingerprint, error) {
 		if err != nil {
 			return err
 		}
+		link := d.Type()&fs.ModeSymlink != 0
 		rel, _ := filepath.Rel(dir, p)
 		if rel == "." {
+			if link {
+				return symlinkError(p, ".ddev")
+			}
 			return nil
 		}
+		// A link counts as a directory here, so a linked directory is not
+		// skipped where its contents would be fingerprinted.
+		dirLike := d.IsDir() || link
 		name := d.Name()
-		if (strings.HasPrefix(name, ".") && !keepDot(name)) || (d.IsDir() && skipDirs[rel]) {
+		if (strings.HasPrefix(name, ".") && !keepDot(name)) || (dirLike && skipDirs[rel]) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if slash := filepath.ToSlash(rel); strings.HasPrefix(slash, addonMetadata+"/") && addonMetadataSkip(slash, d.IsDir()) {
+		if slash := filepath.ToSlash(rel); strings.HasPrefix(slash, addonMetadata+"/") && addonMetadataSkip(slash, dirLike) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if d.Type()&fs.ModeSymlink != 0 {
-			target, err := os.Readlink(p)
-			if err != nil {
-				return err
-			}
-			fp[filepath.ToSlash(rel)] = "symlink:" + target
-			return nil
+		if link {
+			return symlinkError(p, ".ddev/"+filepath.ToSlash(rel))
 		}
 		if d.IsDir() || !d.Type().IsRegular() {
 			return nil
@@ -122,6 +128,12 @@ func Snapshot(root string) (Fingerprint, error) {
 		return nil
 	})
 	return fp, err
+}
+
+func symlinkError(p, shown string) error {
+	target, _ := os.Readlink(p)
+	return fmt.Errorf("%s is a symlink (to %s); ddev follows it, so approving it would not cover the target. "+
+		"Replace it with a regular file or directory", shown, target)
 }
 
 // Diff lists the paths that were added, removed or changed relative to approved.

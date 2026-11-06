@@ -80,7 +80,7 @@ func fakePackage(t *testing.T, client string) string {
 	t.Helper()
 	src := t.TempDir()
 	files := map[string]string{
-		filepath.Join(distDir, "host", runtime.GOOS+"-"+runtime.GOARCH, "ddev-bridge"): "host",
+		filepath.Join(distDir, "host", runtime.GOOS+"-"+runtime.GOARCH, "ddev-bridge"):  "host",
 		filepath.Join(distDir, "client", "linux-"+runtime.GOARCH, "ddev-bridge-client"): client,
 		filepath.FromSlash(hostCommand): "#!/bin/sh\n",
 	}

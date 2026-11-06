@@ -121,7 +121,8 @@ Output is capped at 8 MiB per stream, and one command runs per project at a time
 | Registry (token hashes, `.ddev/` fingerprints) | `~/.config/ddev-bridge/projects.json` | `~/Library/Application Support/ddev-bridge/projects.json` |
 | Host policy | `~/.config/ddev-bridge/policy` | `~/Library/Application Support/ddev-bridge/policy` |
 | Log (rotated at 10 MB), PID | `~/.local/state/ddev-bridge/` | same |
-| Per project | `.ddev-bridge/` (client, `ddev`/`drush` links, token), one `.gitignore` line, `.claude/settings.local.json` overlay | same |
+| Per project | `.ddev-bridge/` (client, `ddev`/`drush` links, token), `.claude/settings.local.json` overlay | same |
+| Per clone | a block in `.git/info/exclude` ignoring `.ddev-bridge/` and `.claude/settings.local.json` | same |
 
 ddev's global dir is `~/.ddev` by default (`ddev version` shows it). `uninstall` removes the first two rows;
 to remove the rest: `rm -rf ~/.config/ddev-bridge ~/.local/state/ddev-bridge` (macOS: the

@@ -43,7 +43,7 @@ Symlinks in the checked part of `.ddev/` (or `.ddev` itself as a symlink) pause 
 ddev follows them, so the agent could change the target after approval. Replace them with regular files.
 
 ```bash
-ddev bridge diff      # what changed since the last approval (exit 1 if anything did)
+ddev bridge diff      # what changed since the last approval (exit 1 if anything did, 2 on error)
 git diff .ddev/       # review it
 ddev bridge approve   # shows the diff again, asks, and accepts the current state
 ```
@@ -174,7 +174,7 @@ sbx policy rm network --resource localhost:7474
 | Command | |
 |---|---|
 | `ddev bridge` / `status` | Running? Which version, PID, log, registered projects |
-| `ddev bridge diff` | `.ddev/` changes awaiting approval (exit 1 if any) |
+| `ddev bridge diff` | `.ddev/` changes awaiting approval (exit 1 if any, 2 on error) |
 | `ddev bridge approve [-y]` | Show the diff, ask, approve |
 | `ddev bridge ensure` / `stop` | Start in the background / stop |
 | `ddev bridge log [N]` | Last N lines of the bridge log (startup + JSONL audit) |

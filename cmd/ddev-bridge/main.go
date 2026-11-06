@@ -34,7 +34,7 @@ Usage:
   ddev-bridge uninstall-project [dir]          remove the client and token, unregister
   ddev-bridge register [dir]                   register a ddev project (default: .), write its token
                                                and approve its current .ddev/ configuration
-  ddev-bridge diff [dir]                       show .ddev/ changes awaiting approval
+  ddev-bridge diff [dir]                       show .ddev/ changes awaiting approval (exit 1: changes, 2: error)
   ddev-bridge approve [dir]                    approve the current .ddev/ configuration after reviewing changes
   ddev-bridge unregister [dir]                 remove a project
   ddev-bridge list                             list registered projects
@@ -120,11 +120,11 @@ func main() {
 		}
 		reg, err := registry.Load()
 		if err != nil {
-			log.Fatal(err)
+			diffError(err)
 		}
 		root, _, err := registry.ValidateRoot(dir)
 		if err != nil {
-			log.Fatal(err)
+			diffError(err)
 		}
 		found := false
 		for _, p := range reg.Projects {
@@ -134,7 +134,7 @@ func main() {
 			found = true
 			fp, err := integrity.Snapshot(root)
 			if err != nil {
-				log.Fatal(err)
+				diffError(err)
 			}
 			diff := integrity.Diff(p.Approved, fp)
 			if len(diff) == 0 {
@@ -152,7 +152,7 @@ func main() {
 			}
 		}
 		if !found {
-			log.Fatalf("%s is not registered", root)
+			diffError(fmt.Errorf("%s is not registered", root))
 		}
 	case "list":
 		listProjects()
@@ -221,4 +221,10 @@ func serve(args []string) {
 	}
 	log.Printf("ddev-bridge %s listening on %s", version, *addr)
 	log.Fatal(srv.ListenAndServe())
+}
+
+// diffError exits with 2, so callers can tell an error from "changes found" (1).
+func diffError(err error) {
+	log.Print(err)
+	os.Exit(2)
 }

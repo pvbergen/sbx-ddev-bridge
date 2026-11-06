@@ -9,29 +9,6 @@ import (
 	"testing"
 )
 
-func TestEnsureGitignore(t *testing.T) {
-	p := filepath.Join(t.TempDir(), ".gitignore")
-	os.WriteFile(p, []byte("vendor/"), 0o644) // no trailing newline
-	if added, err := ensureGitignore(atRoot(t, p)); err != nil || !added {
-		t.Fatalf("first call: added=%v err=%v", added, err)
-	}
-	if added, _ := ensureGitignore(atRoot(t, p)); added {
-		t.Fatal("second call must be a no-op")
-	}
-	b, _ := os.ReadFile(p)
-	want := "vendor/\n# ddev-bridge (per-developer install, not for the repository)\n/.ddev-bridge/\n"
-	if string(b) != want {
-		t.Fatalf("got %q, want %q", b, want)
-	}
-
-	// An existing entry, anchored or not, is respected.
-	q := filepath.Join(t.TempDir(), ".gitignore")
-	os.WriteFile(q, []byte(".ddev-bridge/\n"), 0o644)
-	if added, _ := ensureGitignore(atRoot(t, q)); added {
-		t.Fatal("entry already present; nothing to add")
-	}
-}
-
 func TestRemoveGitignoreLegacyAddonLines(t *testing.T) {
 	p := filepath.Join(t.TempDir(), ".gitignore")
 	old := "vendor/\n# ddev-bridge (per-developer install, not for the repository)\n/.ddev-bridge/\n/.ddev/config.ddev-bridge.yaml\n/.ddev/addon-metadata/ddev-bridge/\n"
@@ -99,12 +76,10 @@ func TestParseFlags(t *testing.T) {
 }
 
 func TestRemoveGitignore(t *testing.T) {
-	// It reverses ensureGitignore and keeps every other line.
+	// Removes the lines earlier versions added and keeps every other line.
 	p := filepath.Join(t.TempDir(), ".gitignore")
 	orig := "vendor/\n# local\n.env\n"
-	os.WriteFile(p, []byte(orig), 0o644)
-	ensureGitignore(atRoot(t, p))
-	os.WriteFile(p, append(must(os.ReadFile(p)), "node_modules/\n"...), 0o644) // a line added later
+	os.WriteFile(p, []byte(orig+"# ddev-bridge (per-developer install, not for the repository)\n/.ddev-bridge/\nnode_modules/\n"), 0o644)
 	if removed, err := removeGitignore(atRoot(t, p)); err != nil || !removed {
 		t.Fatalf("removed=%v err=%v", removed, err)
 	}
@@ -122,7 +97,7 @@ func TestRemoveGitignore(t *testing.T) {
 
 	// A .gitignore holding only our block is emptied, not deleted.
 	q := filepath.Join(t.TempDir(), ".gitignore")
-	ensureGitignore(atRoot(t, q))
+	os.WriteFile(q, []byte("/.ddev-bridge/\n"), 0o644)
 	removeGitignore(atRoot(t, q))
 	if b, err := os.ReadFile(q); err != nil || len(b) != 0 {
 		t.Fatalf("want an empty file, got %q err=%v", b, err)

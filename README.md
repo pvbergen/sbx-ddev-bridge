@@ -29,7 +29,8 @@ sbx network policy, and starts the bridge. If ddev's `global_config.yaml` alread
 nothing is installed and the task to add by hand is printed.
 
 **Update:** the same two commands again. Tokens, approvals and your rules stay; enabled projects get the
-new client.
+new client. Earlier versions added `/.ddev-bridge/` to the tracked `.gitignore`; the update moves it to
+`.git/info/exclude`, so commit the `.gitignore` change.
 
 **From the old per-project add-on:** run `ddev add-on remove ddev-bridge` in each project first, then
 install as above and enable each project. If the removal left `.ddev/` changes, `ddev bridge approve`.
@@ -39,9 +40,10 @@ On the host, in each project the agent may use:
 ```bash
 ddev bridge enable
 ```
-This puts the sandbox client in `.ddev-bridge/` (gitignored), registers the project, approves its current
-`.ddev/`, adds the [Claude Code overlay](#agents) and starts the bridge. Nothing goes into `.ddev/`.
-`ddev bridge disable` undoes it.
+This puts the sandbox client in `.ddev-bridge/`, registers the project, approves its current `.ddev/`,
+adds the [Claude Code overlay](#agents) and starts the bridge. Nothing goes into `.ddev/`, and nothing
+tracked changes: `.ddev-bridge/` and `.claude/settings.local.json` are ignored in `.git/info/exclude`, which
+belongs to your clone. `ddev bridge disable` undoes it.
 
 ## Daily use
 The agent calls `ddev …` and `drush …` as usual. Everything local to the project is allowed: any drush
@@ -90,7 +92,7 @@ If the file isn't valid JSON, it is left alone and the snippet is printed.
 [agent guide](cmd/ddev-bridge-client/agent-guide.md).
 
 ## Uninstall
-**One project:** `ddev bridge disable` in the project. It removes `.ddev-bridge/`, the `.gitignore` line and
+**One project:** `ddev bridge disable` in the project. It removes `.ddev-bridge/`, the ignore block and
 the Claude Code overlay, and unregisters the project. For a project directory that's already gone, run
 the binary directly: `<ddev global dir>/ddev-bridge-dist/host/<os>-<arch>/ddev-bridge disable <dir>`.
 

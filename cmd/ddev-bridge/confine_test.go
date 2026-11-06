@@ -67,7 +67,7 @@ func TestProjectFilesRefuseSymlinkOut(t *testing.T) {
 
 	for name, run := range map[string]func(r *os.Root, path string) error{
 		claudeSettings: func(r *os.Root, p string) error { _, err := mergeClaudeSettings(r, p); return err },
-		".gitignore":   func(r *os.Root, p string) error { _, err := ensureGitignore(r, p); return err },
+		".gitignore":   func(r *os.Root, p string) error { _, err := removeGitignore(r, p); return err },
 	} {
 		t.Run(name, func(t *testing.T) {
 			os.WriteFile(outside, orig, 0o644)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -20,17 +19,15 @@ import (
 // BinDir is where the sandbox client and its symlinks live in a project.
 var BinDir = filepath.Join(registry.Dir, "bin")
 
-// gitignoreLines keep the per-developer client and token out of the repository.
-var gitignoreLines = []string{"/" + registry.Dir + "/"}
-
-// legacyGitignoreLines came with the per-project add-on; disable removes them too.
-var legacyGitignoreLines = []string{
+// legacyGitignore are the lines earlier versions added to the tracked
+// .gitignore (the last two with the per-project add-on). The ignore lines now
+// go to .git/info/exclude; enable, disable and setup remove these.
+var legacyGitignore = []string{
+	"# ddev-bridge (per-developer install, not for the repository)",
+	"/" + registry.Dir + "/",
 	"/.ddev/config.ddev-bridge.yaml",
 	"/.ddev/addon-metadata/ddev-bridge/",
 }
-
-// gitignoreHeader introduces the block ensureGitignore appends.
-const gitignoreHeader = "# ddev-bridge (per-developer install, not for the repository)"
 
 // defaultClient is the client next to this host binary in the package layout:
 // <dist>/host/<os>-<arch>/ddev-bridge -> <dist>/client/linux-<arch>/ddev-bridge-client.
@@ -46,8 +43,8 @@ func defaultClient() string {
 	return filepath.Join(filepath.Dir(exe), "..", "..", "client", "linux-"+runtime.GOARCH, "ddev-bridge-client")
 }
 
-// enableProject puts the client into <root>/.ddev-bridge/bin, updates .gitignore
-// and the Claude Code settings, registers the project, approves its .ddev/ and
+// enableProject puts the client into <root>/.ddev-bridge/bin, ignores it in
+// .git/info/exclude, updates the Claude Code settings, registers the project, approves its .ddev/ and
 // starts the bridge.
 func enableProject(args []string) {
 	fs := flag.NewFlagSet("enable", flag.ExitOnError)
@@ -73,10 +70,8 @@ func enableProject(args []string) {
 	}
 	fmt.Printf("installed sandbox client in %s (ddev, drush)\n", filepath.Join(root, BinDir))
 
-	if added, err := ensureGitignore(r, ".gitignore"); err != nil {
-		fatal(confined(".gitignore", err))
-	} else if added {
-		fmt.Println("added /.ddev-bridge/ (client, token) to .gitignore")
+	if err := ignoreLocally(root, r, func(s string) { fmt.Println(s) }); err != nil {
+		fatal(err)
 	}
 
 	installClaude(r)
@@ -99,8 +94,8 @@ func enableProject(args []string) {
 	}
 }
 
-// disableProject reverses enableProject, including the .gitignore block and
-// the Claude Code settings. The bridge keeps running for other projects.
+// disableProject reverses enableProject, including the ignore lines and the
+// Claude Code settings. The bridge keeps running for other projects.
 func disableProject(args []string) {
 	dir := "."
 	if len(args) > 0 {
@@ -125,11 +120,11 @@ func disableProject(args []string) {
 	defer r.Close()
 	removeClient(r)
 	fmt.Println("removed the sandbox client and token, unregistered the project")
-	if removed, err := removeGitignore(r, ".gitignore"); err != nil {
-		fmt.Printf("could not clean .gitignore (%v); remove the ddev-bridge lines by hand\n", confined(".gitignore", err))
-	} else if removed {
-		fmt.Println("removed the ddev-bridge lines from .gitignore")
+	var others []string
+	for _, p := range reg.Projects {
+		others = append(others, p.Root)
 	}
+	unignoreLocally(root, r, others, func(s string) { fmt.Println(s) })
 	uninstallClaude(r)
 }
 
@@ -174,10 +169,9 @@ func confined(path string, err error) error {
 	return fmt.Errorf("%s: %w (writes stay inside the project; is a part of this path a symlink out of it?)", path, err)
 }
 
-// removeGitignore deletes the lines ensureGitignore adds (the header and the
-// entries, exactly as written, plus those of the old add-on) and keeps
-// everything else. The file is kept even
-// if it ends up empty, because it may be tracked.
+// removeGitignore deletes the lines earlier versions added (legacyGitignore,
+// exactly as written) and keeps everything else. The file is kept even if it
+// ends up empty, because it may be tracked.
 func removeGitignore(r *os.Root, path string) (bool, error) {
 	data, err := r.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -185,8 +179,8 @@ func removeGitignore(r *os.Root, path string) (bool, error) {
 	} else if err != nil {
 		return false, err
 	}
-	ours := map[string]bool{gitignoreHeader: true}
-	for _, l := range append(gitignoreLines, legacyGitignoreLines...) {
+	ours := map[string]bool{}
+	for _, l := range legacyGitignore {
 		ours[l] = true
 	}
 	trailing := strings.HasSuffix(string(data), "\n")
@@ -235,39 +229,6 @@ func copyAtomic(r *os.Root, src, dst string) error {
 		return err
 	}
 	return r.Rename(tmpName, dst)
-}
-
-// ensureGitignore appends the bridge entries that are missing.
-func ensureGitignore(r *os.Root, path string) (bool, error) {
-	have := map[string]bool{}
-	if f, err := r.Open(path); err == nil {
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			have[strings.TrimSpace(sc.Text())] = true
-		}
-		f.Close()
-	}
-	var missing []string
-	for _, l := range gitignoreLines {
-		if !have[l] && !have[strings.TrimPrefix(l, "/")] {
-			missing = append(missing, l)
-		}
-	}
-	if len(missing) == 0 {
-		return false, nil
-	}
-	data, _ := r.ReadFile(path)
-	prefix := ""
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		prefix = "\n"
-	}
-	f, err := r.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-	_, err = fmt.Fprintf(f, "%s%s\n%s\n", prefix, gitignoreHeader, strings.Join(missing, "\n"))
-	return true, err
 }
 
 func fatal(err error) {

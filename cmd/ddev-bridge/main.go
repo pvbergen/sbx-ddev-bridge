@@ -34,7 +34,7 @@ Usage:
   ddev-bridge status [--addr …]                show whether the bridge runs, and the registered projects
   ddev-bridge version                          print the version
   ddev-bridge enable [--no-sbx] [dir]          enable a project: sandbox client in .ddev-bridge/bin, token,
-                                               .gitignore, Claude Code overlay, register, approve .ddev/
+                                               .git/info/exclude, Claude Code overlay, register, approve .ddev/
   ddev-bridge disable [dir]                    undo enable: remove the client, token and overlay, unregister
   ddev-bridge register [dir]                   register a ddev project (default: .), write its token
                                                and approve its current .ddev/ configuration

@@ -319,6 +319,10 @@ func refreshClients(reg *registry.Registry, client string, out io.Writer) error 
 			continue
 		}
 		err = installClient(r, client)
+		if err == nil {
+			// Moves the ignore lines of earlier versions to .git/info/exclude.
+			err = ignoreLocally(p.Root, r, func(s string) { fmt.Fprintf(out, "%s: %s\n", p.Name, s) })
+		}
 		r.Close()
 		if err != nil {
 			fmt.Fprintf(out, "%s: client not updated: %v\n", p.Name, err)

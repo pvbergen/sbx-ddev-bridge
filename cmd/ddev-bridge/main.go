@@ -25,7 +25,10 @@ const usage = `ddev-bridge — host-side bridge for sandboxed agents
 
 Usage:
   ddev-bridge serve [--addr 127.0.0.1:7474]   run the bridge in the foreground
-  ddev-bridge ensure [--addr …]                start the bridge in the background unless this version already runs
+  ddev-bridge setup [--global-dir dir]         install or update the bridge for this machine (run by install.sh)
+  ddev-bridge ensure [--addr …] [--project dir]
+                                               start the bridge in the background unless this version already runs;
+                                               with --project, only if that project is enabled (the ddev hook)
   ddev-bridge stop [--addr …]                  stop the background bridge
   ddev-bridge status [--addr …]                show whether the bridge runs, and the registered projects
   ddev-bridge version                          print the version
@@ -53,10 +56,19 @@ func main() {
 	case "ensure", "stop", "status":
 		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 		addr := fs.String("addr", defaultAddr, "bridge address")
-		mustParse(fs, os.Args[2:], 0, "[--addr …]")
+		var project *string
+		synopsis := "[--addr …]"
+		if os.Args[1] == "ensure" {
+			project = fs.String("project", "", "start only if this project is enabled")
+			synopsis = "[--addr …] [--project dir]"
+		}
+		mustParse(fs, os.Args[2:], 0, synopsis)
 		var err error
 		switch os.Args[1] {
 		case "ensure":
+			if *project != "" && !enabled(*project) {
+				return // the global hook runs for every ddev project
+			}
 			err = ensure(*addr)
 		case "stop":
 			err = stop(*addr)
@@ -71,6 +83,8 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	case "setup":
+		setupCmd(os.Args[2:])
 	case "version", "--version":
 		fmt.Println(version)
 	case "--addon-marker":
@@ -164,6 +178,16 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+}
+
+// enabled reports whether dir is a registered project.
+func enabled(dir string) bool {
+	reg, err := registry.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, ok := reg.Find(dir)
+	return ok
 }
 
 func listProjects() {

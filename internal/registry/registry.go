@@ -222,6 +222,23 @@ func (r *Registry) Approve(dir string) (*Project, []string, error) {
 	return nil, nil, fmt.Errorf("%s is not registered (run `ddev-bridge register` first)", root)
 }
 
+// Find returns the registered project at dir, if any.
+func (r *Registry) Find(dir string) (*Project, bool) {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, false
+	}
+	if rr, err := filepath.EvalSymlinks(root); err == nil {
+		root = rr
+	}
+	for i := range r.Projects {
+		if r.Projects[i].Root == root {
+			return &r.Projects[i], true
+		}
+	}
+	return nil, false
+}
+
 // Unregister removes the project at dir.
 func (r *Registry) Unregister(dir string) error {
 	root, err := filepath.Abs(dir)

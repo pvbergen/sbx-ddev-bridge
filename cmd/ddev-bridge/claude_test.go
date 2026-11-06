@@ -41,7 +41,7 @@ func countHooks(m map[string]any) int {
 func TestClaudeSettingsMissingFile(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, claudeSettings)
-	if changed, err := mergeClaudeSettings(path); err != nil || !changed {
+	if changed, err := mergeClaudeSettings(atRoot(t, path)); err != nil || !changed {
 		t.Fatalf("merge: changed=%v err=%v", changed, err)
 	}
 	m := readJSON(t, path)
@@ -54,13 +54,13 @@ func TestClaudeSettingsMissingFile(t *testing.T) {
 	}
 
 	// Removal deletes the file and the then empty .claude/.
-	if changed, err := removeClaudeSettings(path); err != nil || !changed {
+	if changed, err := removeClaudeSettings(atRoot(t, path)); err != nil || !changed {
 		t.Fatalf("remove: changed=%v err=%v", changed, err)
 	}
 	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 		t.Fatal(".claude/ should be gone")
 	}
-	if changed, err := removeClaudeSettings(path); err != nil || changed {
+	if changed, err := removeClaudeSettings(atRoot(t, path)); err != nil || changed {
 		t.Fatalf("remove without a file: changed=%v err=%v", changed, err)
 	}
 }
@@ -78,7 +78,7 @@ func TestClaudeSettingsKeepsExistingEntries(t *testing.T) {
 	os.WriteFile(path, []byte(orig), 0o644)
 
 	for i := 0; i < 2; i++ {
-		changed, err := mergeClaudeSettings(path)
+		changed, err := mergeClaudeSettings(atRoot(t, path))
 		if err != nil || changed != (i == 0) {
 			t.Fatalf("merge %d: changed=%v err=%v", i, changed, err)
 		}
@@ -93,7 +93,7 @@ func TestClaudeSettingsKeepsExistingEntries(t *testing.T) {
 	}
 
 	// Removal keeps everything that isn't ours, including a rule we also add.
-	if changed, err := removeClaudeSettings(path); err != nil || !changed {
+	if changed, err := removeClaudeSettings(atRoot(t, path)); err != nil || !changed {
 		t.Fatalf("remove: changed=%v err=%v", changed, err)
 	}
 	var want map[string]any
@@ -108,10 +108,10 @@ func TestClaudeSettingsInvalidLeftUntouched(t *testing.T) {
 	for _, content := range []string{`{"model": `, `[]`, `{"hooks": []}`, `{"permissions": {"ask": "x"}}`} {
 		path := filepath.Join(t.TempDir(), "settings.local.json")
 		os.WriteFile(path, []byte(content), 0o644)
-		if _, err := mergeClaudeSettings(path); !errors.Is(err, errClaudeSettings) {
+		if _, err := mergeClaudeSettings(atRoot(t, path)); !errors.Is(err, errClaudeSettings) {
 			t.Fatalf("merge %q: err=%v", content, err)
 		}
-		if _, err := removeClaudeSettings(path); !errors.Is(err, errClaudeSettings) {
+		if _, err := removeClaudeSettings(atRoot(t, path)); !errors.Is(err, errClaudeSettings) {
 			t.Fatalf("remove %q: err=%v", content, err)
 		}
 		if got := mustRead(t, path); got != content {

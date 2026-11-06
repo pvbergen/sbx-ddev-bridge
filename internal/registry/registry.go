@@ -158,11 +158,7 @@ func (r *Registry) Register(dir string) (*Project, error) {
 	}
 	token := hex.EncodeToString(buf)
 
-	tokenPath := filepath.Join(root, TokenFile)
-	if err := os.MkdirAll(filepath.Dir(tokenPath), 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(tokenPath, []byte(token+"\n"), 0o644); err != nil {
+	if err := writeToken(root, token); err != nil {
 		return nil, err
 	}
 
@@ -179,6 +175,24 @@ func (r *Registry) Register(dir string) (*Project, error) {
 	}
 	r.Projects = append(r.Projects, p)
 	return &r.Projects[len(r.Projects)-1], r.Save()
+}
+
+// writeToken writes the token into the project through os.Root: the sandbox
+// controls the project tree, so a symlinked .ddev-bridge/ or token must not
+// redirect the write to a file elsewhere on the host.
+func writeToken(root, token string) error {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	if err := r.MkdirAll(Dir, 0o755); err != nil {
+		return fmt.Errorf("write token: %w (is %s a symlink out of the project?)", err, Dir)
+	}
+	if err := r.WriteFile(TokenFile, []byte(token+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write token: %w (is %s a symlink out of the project?)", err, TokenFile)
+	}
+	return nil
 }
 
 func now() string { return time.Now().UTC().Format(time.RFC3339) }

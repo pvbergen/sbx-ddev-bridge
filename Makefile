@@ -6,7 +6,7 @@ GOBUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 DIST    := ddev-bridge-dist
 PKG     := dist/ddev-bridge.tar.gz
 # Files that make up the package (plus $(DIST)/ with the binaries).
-PKGFILES := install.sh commands README.md LICENSE
+PKGFILES := install.sh commands README.md LICENSE docs
 
 all: test host clients
 

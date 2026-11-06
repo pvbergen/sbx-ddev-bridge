@@ -39,6 +39,8 @@ is denied with the list of changed files) as soon as it differs. Ignored: ddev's
 `#ddev-generated` files in folders ddev regenerates for the containers (traefik, nginx, apache,
 web-build, …). Config, compose, host-command and mutagen files are always checked, marker or not.
 Add-on manifests are checked because `ddev add-on remove` runs the `removal_actions` stored in them on the host.
+Symlinks in the checked part of `.ddev/` (or `.ddev` itself as a symlink) pause the bridge and can't be approved:
+ddev follows them, so the agent could change the target after approval. Replace them with regular files.
 
 ```bash
 ddev bridge diff      # what changed since the last approval (exit 1 if anything did)

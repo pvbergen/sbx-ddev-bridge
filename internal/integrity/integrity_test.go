@@ -3,6 +3,7 @@ package integrity
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -88,14 +89,54 @@ func TestForgedMarkerIsFingerprinted(t *testing.T) {
 	}
 }
 
-func TestSymlinkRecorded(t *testing.T) {
+func TestSymlinkRefused(t *testing.T) {
+	for _, tc := range []struct{ name, link, target string }{
+		{"file", "config.z.yaml", "../web/x.yaml"},
+		{"dir", "commands/host", "../scripts"},
+		{"absolute", "homeadditions", "/etc"},
+		{"env file", ".env.web", "../.env"},
+		{"addon dir", "addon-metadata/foo", "../../x"},
+		{"addon root", "addon-metadata", "../x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, "config.yaml", "name: demo\n")
+			p := filepath.Join(root, ".ddev", tc.link)
+			os.MkdirAll(filepath.Dir(p), 0o755)
+			if err := os.Symlink(tc.target, p); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Snapshot(root)
+			if err == nil || !strings.Contains(err.Error(), ".ddev/"+tc.link+" is a symlink") {
+				t.Fatalf("want symlink error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestDdevDirSymlinkRefused(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "config.yaml", "name: demo\n")
-	a, _ := Snapshot(root)
-	os.Symlink("/etc", filepath.Join(root, ".ddev", "homeadditions"))
-	b, _ := Snapshot(root)
-	if d := Diff(a, b); len(d) != 1 {
-		t.Fatalf("symlink not detected: %v", d)
+	os.Rename(filepath.Join(root, ".ddev"), filepath.Join(root, "real"))
+	os.Symlink("real", filepath.Join(root, ".ddev"))
+	if _, err := Snapshot(root); err == nil || !strings.Contains(err.Error(), ".ddev is a symlink") {
+		t.Fatalf("want symlink error, got %v", err)
+	}
+}
+
+// Links where the walk does not look (data, ddev's dot-files, add-on
+// bookkeeping) are not configuration and stay allowed.
+func TestSymlinkInSkippedPlaces(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "config.yaml", "name: demo\n")
+	write(t, root, "addon-metadata/foo/manifest.yaml", "name: foo\n")
+	for _, l := range []string{"db_snapshots", ".homeadditions", "addon-metadata/foo/other"} {
+		if err := os.Symlink("/tmp", filepath.Join(root, ".ddev", l)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Snapshot(root); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -308,8 +308,9 @@ func runSetup(o setupOpts, out io.Writer) error {
 	return refreshClients(reg, client, out)
 }
 
-// refreshClients updates the client in every registered project, so client
-// and bridge versions match. Only the client: tokens and approvals stay.
+// refreshClients updates the client and the Claude Code settings in every
+// registered project, so client, hooks and bridge versions match. Tokens and
+// approvals stay.
 func refreshClients(reg *registry.Registry, client string, out io.Writer) error {
 	failed := 0
 	for _, p := range reg.Projects {
@@ -318,10 +319,15 @@ func refreshClients(reg *registry.Registry, client string, out io.Writer) error 
 			fmt.Fprintf(out, "%s: project root %s is gone; `ddev-bridge disable %s` to drop it\n", p.Name, p.Root, p.Root)
 			continue
 		}
+		say := func(s string) { fmt.Fprintf(out, "%s: %s\n", p.Name, s) }
 		err = installClient(r, client)
 		if err == nil {
 			// Moves the ignore lines of earlier versions to .git/info/exclude.
-			err = ignoreLocally(p.Root, r, func(s string) { fmt.Fprintf(out, "%s: %s\n", p.Name, s) })
+			err = ignoreLocally(p.Root, r, say)
+		}
+		if err == nil {
+			// A settings file we can't edit is reported, not a failed update.
+			installClaude(r, say)
 		}
 		r.Close()
 		if err != nil {

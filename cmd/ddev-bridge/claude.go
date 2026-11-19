@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"ddev-bridge/internal/registry"
 )
@@ -16,16 +17,25 @@ import (
 // removed; everything else in the file is kept.
 var claudeSettings = filepath.Join(".claude", "settings.local.json")
 
-// claudeHookCommand runs the client's SessionStart mode. It does nothing on
-// the host, so the hook is harmless outside a sandbox.
-var claudeHookCommand = `"$CLAUDE_PROJECT_DIR"/` + filepath.ToSlash(filepath.Join(registry.Dir, "bin", "ddev-bridge-client")) + " --session-start"
+var claudeClient = `"$CLAUDE_PROJECT_DIR"/` + filepath.ToSlash(filepath.Join(registry.Dir, "bin", "ddev-bridge-client"))
+
+// claudeHook is one hook entry `enable` adds, under event (and matcher).
+type claudeHook struct{ event, matcher, command string }
+
+// claudeHooks: SessionStart does nothing on the host, so it is harmless
+// outside a sandbox. PreToolUse asks before SQL that is not a plain read, on
+// the host and in the sandbox alike.
+var claudeHooks = []claudeHook{
+	{"SessionStart", "", claudeClient + " --session-start"},
+	{"PreToolUse", "Bash", claudeClient + " --pre-tool-use"},
+}
 
 // claudeAskRules make Claude Code confirm commands that change data, config,
 // dependencies or the environment. The bridge allows them; this is a prompt,
-// not a boundary.
+// not a boundary. SQL queries are left to the PreToolUse hook.
 var claudeAskRules = func() []string {
 	var rules []string
-	for _, c := range []string{"cim", "config:import", "config:set", "pmu", "pm:uninstall", "si", "site:install", "sql:drop", "sql:query", "deploy"} {
+	for _, c := range []string{"cim", "config:import", "config:set", "pmu", "pm:uninstall", "si", "site:install", "sql:drop", "deploy"} {
 		rules = append(rules, "Bash(drush "+c+":*)", "Bash(ddev drush "+c+":*)")
 	}
 	for _, c := range []string{"composer require", "composer update", "composer remove", "import-db", "snapshot restore", "stop", "restart"} {
@@ -34,18 +44,30 @@ var claudeAskRules = func() []string {
 	return rules
 }()
 
+// claudeOldAskRules were added by earlier versions; enable and uninstall
+// remove them. sql:query prompted for every read.
+var claudeOldAskRules = []string{"Bash(drush sql:query:*)", "Bash(ddev drush sql:query:*)"}
+
 // errClaudeSettings marks a settings file we leave alone because it is not
 // valid JSON or has an unexpected shape.
 var errClaudeSettings = errors.New("not a valid Claude Code settings file")
 
-func claudeHookGroup() map[string]any {
-	return map[string]any{"hooks": []any{map[string]any{"type": "command", "command": claudeHookCommand}}}
+func (h claudeHook) group() map[string]any {
+	g := map[string]any{"hooks": []any{map[string]any{"type": "command", "command": h.command}}}
+	if h.matcher != "" {
+		g["matcher"] = h.matcher
+	}
+	return g
 }
 
 // claudeSnippet is what to merge by hand when the file can't be edited.
 func claudeSnippet() string {
+	hooks := map[string]any{}
+	for _, h := range claudeHooks {
+		hooks[h.event] = []any{h.group()}
+	}
 	b, _ := json.MarshalIndent(map[string]any{
-		"hooks":       map[string]any{"SessionStart": []any{claudeHookGroup()}},
+		"hooks":       hooks,
 		"permissions": map[string]any{"ask": claudeAskRules},
 	}, "", "  ")
 	return string(b)
@@ -96,10 +118,93 @@ func array(m map[string]any, key string) ([]any, error) {
 	return a, nil
 }
 
-// isOurHook reports whether h is the bridge's SessionStart hook entry.
-func isOurHook(h any) bool {
-	o, ok := h.(map[string]any)
-	return ok && o["command"] == claudeHookCommand
+// isHook reports whether entry is the hook entry running command.
+func isHook(entry any, command string) bool {
+	o, ok := entry.(map[string]any)
+	return ok && o["command"] == command
+}
+
+// addHook adds h under hooks[h.event] unless an entry runs its command.
+func addHook(hooks map[string]any, h claudeHook) (bool, error) {
+	groups, err := array(hooks, h.event)
+	if err != nil {
+		return false, err
+	}
+	for _, g := range groups {
+		grp, ok := g.(map[string]any)
+		if !ok {
+			return false, errClaudeSettings
+		}
+		hs, err := array(grp, "hooks")
+		if err != nil {
+			return false, err
+		}
+		for _, e := range hs {
+			if isHook(e, h.command) {
+				return false, nil
+			}
+		}
+	}
+	hooks[h.event] = append(groups, h.group())
+	return true, nil
+}
+
+// removeHook removes the entries running h.command from hooks[h.event] and
+// drops groups and events it leaves empty.
+func removeHook(hooks map[string]any, h claudeHook) (bool, error) {
+	groups, err := array(hooks, h.event)
+	if err != nil {
+		return false, err
+	}
+	removed := false
+	var keepGroups []any
+	for _, g := range groups {
+		grp, ok := g.(map[string]any)
+		if !ok {
+			return false, errClaudeSettings
+		}
+		hs, err := array(grp, "hooks")
+		if err != nil {
+			return false, err
+		}
+		var keep []any
+		for _, e := range hs {
+			if isHook(e, h.command) {
+				removed = true
+			} else {
+				keep = append(keep, e)
+			}
+		}
+		if len(keep) == len(hs) {
+			keepGroups = append(keepGroups, g)
+		} else if len(keep) > 0 {
+			grp["hooks"] = keep
+			keepGroups = append(keepGroups, g)
+		}
+	}
+	if removed {
+		if len(keepGroups) > 0 {
+			hooks[h.event] = keepGroups
+		} else {
+			delete(hooks, h.event)
+		}
+	}
+	return removed, nil
+}
+
+// withoutRules returns rules minus drop.
+func withoutRules(rules []any, drop []string) []any {
+	d := map[any]bool{}
+	for _, r := range drop {
+		d[r] = true
+	}
+	var keep []any
+	for _, r := range rules {
+		if !d[r] {
+			keep = append(keep, r)
+		}
+	}
+	return keep
 }
 
 func writeSettings(r *os.Root, path string, m map[string]any) error {
@@ -116,7 +221,7 @@ func writeSettings(r *os.Root, path string, m map[string]any) error {
 	return r.WriteFile(path, buf.Bytes(), 0o644)
 }
 
-// mergeClaudeSettings adds the SessionStart hook and the ask rules that are
+// mergeClaudeSettings adds the hooks and the ask rules that are
 // missing. It writes only if something changed.
 func mergeClaudeSettings(r *os.Root, path string) (bool, error) {
 	m, _, err := loadSettings(r, path)
@@ -129,27 +234,12 @@ func mergeClaudeSettings(r *os.Root, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	groups, err := array(hooks, "SessionStart")
-	if err != nil {
-		return false, err
-	}
-	found := false
-	for _, g := range groups {
-		grp, ok := g.(map[string]any)
-		if !ok {
-			return false, errClaudeSettings
-		}
-		hs, err := array(grp, "hooks")
+	for _, h := range claudeHooks {
+		added, err := addHook(hooks, h)
 		if err != nil {
 			return false, err
 		}
-		for _, h := range hs {
-			found = found || isOurHook(h)
-		}
-	}
-	if !found {
-		hooks["SessionStart"] = append(groups, claudeHookGroup())
-		changed = true
+		changed = changed || added
 	}
 
 	perms, err := object(m, "permissions", true)
@@ -159,6 +249,9 @@ func mergeClaudeSettings(r *os.Root, path string) (bool, error) {
 	ask, err := array(perms, "ask")
 	if err != nil {
 		return false, err
+	}
+	if keep := withoutRules(ask, claudeOldAskRules); len(keep) < len(ask) {
+		ask, changed = keep, true
 	}
 	have := map[any]bool{}
 	for _, r := range ask {
@@ -193,46 +286,15 @@ func removeClaudeSettings(r *os.Root, path string) (bool, error) {
 		return false, err
 	}
 	if hooks != nil {
-		groups, err := array(hooks, "SessionStart")
-		if err != nil {
-			return false, err
-		}
-		removed := false
-		var keepGroups []any
-		for _, g := range groups {
-			grp, ok := g.(map[string]any)
-			if !ok {
-				return false, errClaudeSettings
-			}
-			hs, err := array(grp, "hooks")
+		for _, h := range claudeHooks {
+			removed, err := removeHook(hooks, h)
 			if err != nil {
 				return false, err
 			}
-			var keep []any
-			for _, h := range hs {
-				if isOurHook(h) {
-					removed = true
-				} else {
-					keep = append(keep, h)
-				}
-			}
-			if len(keep) == len(hs) {
-				keepGroups = append(keepGroups, g)
-			} else if len(keep) > 0 {
-				grp["hooks"] = keep
-				keepGroups = append(keepGroups, g)
-			}
-		}
-		if removed {
-			changed = true
-			if len(keepGroups) > 0 {
-				hooks["SessionStart"] = keepGroups
-			} else {
-				delete(hooks, "SessionStart")
-			}
-			if len(hooks) == 0 {
+			if removed && len(hooks) == 0 {
 				delete(m, "hooks")
 			}
+			changed = changed || removed
 		}
 	}
 
@@ -245,16 +307,7 @@ func removeClaudeSettings(r *os.Root, path string) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		ours := map[any]bool{}
-		for _, r := range claudeAskRules {
-			ours[r] = true
-		}
-		var keep []any
-		for _, r := range ask {
-			if !ours[r] {
-				keep = append(keep, r)
-			}
-		}
+		keep := withoutRules(ask, slices.Concat(claudeAskRules, claudeOldAskRules))
 		if len(keep) < len(ask) {
 			changed = true
 			if len(keep) > 0 {
@@ -291,7 +344,7 @@ func installClaude(r *os.Root) {
 	case err != nil:
 		fmt.Printf("could not update %s (%v); merge in by hand:\n%s\n", claudeSettings, confined(claudeSettings, err), claudeSnippet())
 	case changed:
-		fmt.Printf("added the Claude Code sandbox hook and ask rules to %s\n", claudeSettings)
+		fmt.Printf("added the Claude Code sandbox hooks and ask rules to %s\n", claudeSettings)
 	}
 }
 
@@ -299,8 +352,8 @@ func uninstallClaude(r *os.Root) {
 	changed, err := removeClaudeSettings(r, claudeSettings)
 	switch {
 	case err != nil:
-		fmt.Printf("could not clean %s (%v); remove the ddev-bridge hook and ask rules by hand:\n%s\n", claudeSettings, err, claudeSnippet())
+		fmt.Printf("could not clean %s (%v); remove the ddev-bridge hooks and ask rules by hand:\n%s\n", claudeSettings, err, claudeSnippet())
 	case changed:
-		fmt.Printf("removed the Claude Code sandbox hook and ask rules from %s\n", claudeSettings)
+		fmt.Printf("removed the Claude Code sandbox hooks and ask rules from %s\n", claudeSettings)
 	}
 }

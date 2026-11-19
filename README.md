@@ -79,8 +79,12 @@ All commands: [reference](docs/reference.md#ddev-bridge-commands).
 **Claude Code** needs no setup. `ddev bridge enable` adds to `.claude/settings.local.json`:
 - a `SessionStart` hook that, in a sandbox, puts `.ddev-bridge/bin` on PATH and gives the agent the
   [agent guide](cmd/ddev-bridge-client/agent-guide.md) and the bridge status (on the host it does nothing);
+- a `PreToolUse` hook that asks before SQL that isn't a plain read (`drush sql:query`, `ddev mysql -e`).
+  Reads run without a prompt, also several in one call (`SELECT …; SHOW …`);
 - `permissions.ask` rules for commands that change data, config, dependencies or the environment
-  (`drush cim`, `ddev composer require`, `ddev restart`, …). These also apply to host sessions.
+  (`drush cim`, `ddev composer require`, `ddev restart`, …).
+
+The hook and the rules also apply to host sessions. They are prompts, not a boundary.
 
 If the file isn't valid JSON, it is left alone and the snippet is printed.
 

@@ -141,6 +141,9 @@ func TestSetup(t *testing.T) {
 	if b, _ := os.ReadFile(clientPath); string(b) != "v2" {
 		t.Fatalf("client not refreshed: %q", b)
 	}
+	if !allHooksOnce(readJSON(t, filepath.Join(proj, claudeSettings))) {
+		t.Fatalf("Claude Code settings not refreshed:\n%s", out.String())
+	}
 	if b, _ := os.ReadFile(filepath.Join(proj, registry.TokenFile)); !bytes.Equal(b, token) {
 		t.Fatal("setup must not change the token")
 	}

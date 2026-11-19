@@ -29,7 +29,7 @@ sbx network policy, and starts the bridge. If ddev's `global_config.yaml` alread
 nothing is installed and the task to add by hand is printed.
 
 **Update:** the same two commands again. Tokens, approvals and your rules stay; enabled projects get the
-new client.
+new client and the current Claude Code hooks and ask rules.
 
 ## Enable a project
 On the host, in each project the agent may use:

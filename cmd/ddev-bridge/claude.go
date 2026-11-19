@@ -334,17 +334,19 @@ func removeClaudeSettings(r *os.Root, path string) (bool, error) {
 	return true, writeSettings(r, path, m)
 }
 
-// installClaude and uninstallClaude report the result of the merge; a file
-// they can't edit is left untouched with instructions instead.
-func installClaude(r *os.Root) {
+// installClaude and uninstallClaude report the result of the merge through
+// say; a file they can't edit is left untouched with instructions instead.
+// enable and the update both run installClaude, so new hooks and rules reach
+// enabled projects.
+func installClaude(r *os.Root, say func(string)) {
 	changed, err := mergeClaudeSettings(r, claudeSettings)
 	switch {
 	case errors.Is(err, errClaudeSettings):
-		fmt.Printf("%s is not valid settings JSON; left it untouched. For the Claude Code sandbox hook, merge in:\n%s\n", claudeSettings, claudeSnippet())
+		say(fmt.Sprintf("%s is not valid settings JSON; left it untouched. For the Claude Code sandbox hooks, merge in:\n%s", claudeSettings, claudeSnippet()))
 	case err != nil:
-		fmt.Printf("could not update %s (%v); merge in by hand:\n%s\n", claudeSettings, confined(claudeSettings, err), claudeSnippet())
+		say(fmt.Sprintf("could not update %s (%v); merge in by hand:\n%s", claudeSettings, confined(claudeSettings, err), claudeSnippet()))
 	case changed:
-		fmt.Printf("added the Claude Code sandbox hooks and ask rules to %s\n", claudeSettings)
+		say(fmt.Sprintf("updated the Claude Code sandbox hooks and ask rules in %s", claudeSettings))
 	}
 }
 

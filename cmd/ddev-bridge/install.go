@@ -74,7 +74,7 @@ func enableProject(args []string) {
 		fatal(err)
 	}
 
-	installClaude(r)
+	installClaude(r, func(s string) { fmt.Println(s) })
 
 	reg, err := registry.Load()
 	if err != nil {

@@ -45,6 +45,7 @@ Usage:
   ddev-bridge approve [dir]                    approve the current .ddev/ configuration after reviewing changes
   ddev-bridge unregister [dir]                 remove a project
   ddev-bridge list                             list registered projects
+  ddev-bridge prune                            unregister projects whose directory is gone (moved or deleted)
   ddev-bridge policy ls|allow|deny|rm|reset … show or edit the host policy rules (see policy --help)
 `
 
@@ -174,6 +175,22 @@ func main() {
 		}
 	case "list":
 		listProjects()
+	case "prune":
+		mustParse(flag.NewFlagSet("prune", flag.ExitOnError), os.Args[2:], 0, "")
+		reg, err := registry.Load()
+		if err != nil {
+			log.Fatal(err)
+		}
+		gone, err := reg.Prune()
+		if err != nil {
+			log.Fatal(err)
+		}
+		if len(gone) == 0 {
+			fmt.Println("every registered project still exists; nothing to prune")
+		}
+		for _, p := range gone {
+			fmt.Printf("unregistered %s (%s is gone)\n", p.Name, p.Root)
+		}
 	case "policy":
 		os.Exit(policyCmd(os.Args[2:], os.Stdin, os.Stdout))
 	case "-h", "--help", "help":

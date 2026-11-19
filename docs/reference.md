@@ -97,6 +97,7 @@ On the host only; denied from the sandbox.
 | `ddev bridge log [N]` | Last N lines of the bridge log |
 | `ddev bridge policy [ls\|allow\|deny\|rm\|reset]` | Your own rules, see [Host policy](#host-policy) |
 | `ddev bridge list` / `version` | Registered projects / version |
+| `ddev bridge prune` | Unregister projects whose directory is gone |
 | `ddev bridge register` / `unregister` | Only the registry part of `enable` / `disable` |
 
 The global `post-start` hook runs `ddev bridge ensure` on every `ddev start`; it does nothing in a project

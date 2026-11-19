@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Description: Manage the ddev-bridge for sandboxed agents
-## Usage: bridge [enable|disable|status|ensure|stop|diff|approve [-y]|list|log [N]|version|update [vX.Y.Z]|policy ls|allow|deny|rm|reset]
+## Usage: bridge [enable|disable|status|ensure|stop|diff|approve [-y]|list|prune|log [N]|version|update [vX.Y.Z]|policy ls|allow|deny|rm|reset]
 ## Example: "ddev bridge enable" or "ddev bridge approve" or "ddev bridge update" or "ddev bridge policy deny --reason 'reaches live' ddev get_dump"
 ## CanRunGlobally: true
 set -euo pipefail
@@ -23,7 +23,7 @@ case "$cmd" in
   ensure)
     # Also the global post-start hook: starts the bridge only for enabled projects.
     exec "$b" ensure --project "$root" "$@" ;;
-  status|stop|list|version)
+  status|stop|list|prune|version)
     exec "$b" "$cmd" "$@" ;;
   enable|disable)
     exec "$b" "$cmd" "$@" "$root" ;;

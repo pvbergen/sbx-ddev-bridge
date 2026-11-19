@@ -239,6 +239,24 @@ func (r *Registry) Find(dir string) (*Project, bool) {
 	return nil, false
 }
 
+// Prune removes the projects whose root no longer exists and returns them.
+// Other errors (e.g. permissions) keep the project.
+func (r *Registry) Prune() ([]Project, error) {
+	var kept, gone []Project
+	for _, p := range r.Projects {
+		if _, err := os.Stat(p.Root); errors.Is(err, os.ErrNotExist) {
+			gone = append(gone, p)
+		} else {
+			kept = append(kept, p)
+		}
+	}
+	if len(gone) == 0 {
+		return nil, nil
+	}
+	r.Projects = kept
+	return gone, r.Save()
+}
+
 // Unregister removes the project at dir.
 func (r *Registry) Unregister(dir string) error {
 	root, err := filepath.Abs(dir)

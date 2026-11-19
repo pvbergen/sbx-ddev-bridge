@@ -316,7 +316,7 @@ func refreshClients(reg *registry.Registry, client string, out io.Writer) error 
 	for _, p := range reg.Projects {
 		r, err := os.OpenRoot(p.Root)
 		if err != nil {
-			fmt.Fprintf(out, "%s: project root %s is gone; `ddev-bridge disable %s` to drop it\n", p.Name, p.Root, p.Root)
+			fmt.Fprintf(out, "%s: project root %s is gone; `ddev bridge prune` drops it\n", p.Name, p.Root)
 			continue
 		}
 		say := func(s string) { fmt.Fprintf(out, "%s: %s\n", p.Name, s) }

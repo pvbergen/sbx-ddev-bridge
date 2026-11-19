@@ -3,11 +3,14 @@
 package main
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -196,8 +199,17 @@ func listProjects() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, p := range reg.Projects {
-		fmt.Printf("%s\t%s\n", p.Name, p.Root)
+	writeProjects(os.Stdout, reg.Projects)
+}
+
+// writeProjects lists projects by name (case-insensitive), then root.
+func writeProjects(w io.Writer, projects []registry.Project) {
+	sorted := slices.Clone(projects)
+	slices.SortFunc(sorted, func(a, b registry.Project) int {
+		return cmp.Or(cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)), cmp.Compare(a.Root, b.Root))
+	})
+	for _, p := range sorted {
+		fmt.Fprintf(w, "%s\t%s\n", p.Name, p.Root)
 	}
 }
 

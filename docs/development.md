@@ -18,6 +18,16 @@ ddev-bridge enable --client dist/linux-amd64/ddev-bridge-client ~/projects/my-pr
 ddev-bridge serve             # foreground; or `ddev-bridge ensure` for the background
 ```
 
+## What an update changes in projects
+The update (`install.sh`) runs `refreshClients` in `cmd/ddev-bridge/setup.go` for every enabled project: it
+replaces the client (with the embedded agent guide), moves old ignore lines to `.git/info/exclude` and merges
+the Claude Code settings. When you change what a project gets:
+- **Add** a hook or ask rule to `claudeHooks`/`claudeAskRules` in `cmd/ddev-bridge/claude.go`; the merge adds
+  it everywhere.
+- **Remove or rename** one: list the old form (in `claudeOldAskRules`, or the old hook command), so the merge
+  and `disable` remove it. Otherwise the stale entry stays in every project.
+- **New files in the project:** add a step to `refreshClients` and to `disable`, not only to `enable`.
+
 ## CI and releases
 - `.github/workflows/ci.yml`: on every PR and push to `main`, runs the tests and a test build of the
   package. Nothing is uploaded.

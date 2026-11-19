@@ -86,6 +86,13 @@ func main() {
 		return
 	}
 
+	if argv[0] == "--pre-tool-use" {
+		if err := preToolUse(os.Stdin, os.Stdout); err != nil {
+			fail("%v", err)
+		}
+		return
+	}
+
 	if cloneMode() {
 		fail("this sandbox runs in clone mode; host ddev would not see your changes. Use a direct-mode sandbox.")
 	}

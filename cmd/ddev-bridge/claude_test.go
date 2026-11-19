@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -23,19 +24,30 @@ func readJSON(t *testing.T, path string) map[string]any {
 	return m
 }
 
-func countHooks(m map[string]any) int {
+// countHooks counts the entries of h in m, checking the group's matcher.
+func countHooks(m map[string]any, h claudeHook) int {
 	n := 0
 	hooks, _ := m["hooks"].(map[string]any)
-	groups, _ := hooks["SessionStart"].([]any)
+	groups, _ := hooks[h.event].([]any)
 	for _, g := range groups {
-		hs, _ := g.(map[string]any)["hooks"].([]any)
-		for _, h := range hs {
-			if isOurHook(h) {
+		grp := g.(map[string]any)
+		hs, _ := grp["hooks"].([]any)
+		for _, e := range hs {
+			if isHook(e, h.command) && (grp["matcher"] == nil && h.matcher == "" || grp["matcher"] == h.matcher) {
 				n++
 			}
 		}
 	}
 	return n
+}
+
+func allHooksOnce(m map[string]any) bool {
+	for _, h := range claudeHooks {
+		if countHooks(m, h) != 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func TestClaudeSettingsMissingFile(t *testing.T) {
@@ -46,11 +58,11 @@ func TestClaudeSettingsMissingFile(t *testing.T) {
 	}
 	m := readJSON(t, path)
 	ask := m["permissions"].(map[string]any)["ask"].([]any)
-	if countHooks(m) != 1 || len(ask) != len(claudeAskRules) {
+	if !allHooksOnce(m) || len(ask) != len(claudeAskRules) {
 		t.Fatalf("settings: %v", m)
 	}
-	if want := `"$CLAUDE_PROJECT_DIR"/.ddev-bridge/bin/ddev-bridge-client --session-start`; claudeHookCommand != want {
-		t.Fatalf("hook command = %q, want %q", claudeHookCommand, want)
+	if want := `"$CLAUDE_PROJECT_DIR"/.ddev-bridge/bin/ddev-bridge-client --pre-tool-use`; claudeHooks[1].command != want {
+		t.Fatalf("hook command = %q, want %q", claudeHooks[1].command, want)
 	}
 
 	// Removal deletes the file and the then empty .claude/.
@@ -85,7 +97,7 @@ func TestClaudeSettingsKeepsExistingEntries(t *testing.T) {
 	}
 	m := readJSON(t, path)
 	ask := m["permissions"].(map[string]any)["ask"].([]any)
-	if countHooks(m) != 1 || len(ask) != len(claudeAskRules)+1 || m["model"] != "opus" {
+	if !allHooksOnce(m) || len(ask) != len(claudeAskRules)+1 || m["model"] != "opus" {
 		t.Fatalf("after merge: %v", m)
 	}
 	if strings.Count(mustRead(t, path), `"Bash(drush cim:*)"`) != 1 {
@@ -104,6 +116,30 @@ func TestClaudeSettingsKeepsExistingEntries(t *testing.T) {
 	}
 }
 
+func TestClaudeSettingsUpgrade(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.local.json")
+	old := `{"permissions": {"ask": ["Bash(drush sql:query:*)", "Bash(git push:*)", "Bash(ddev drush sql:query:*)"]},
+  "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": ` + strconv.Quote(claudeHooks[0].command) + `}]}]}}`
+	os.WriteFile(path, []byte(old), 0o644)
+	if changed, err := mergeClaudeSettings(atRoot(t, path)); err != nil || !changed {
+		t.Fatalf("merge: changed=%v err=%v", changed, err)
+	}
+	got := mustRead(t, path)
+	if strings.Contains(got, "sql:query") || !strings.Contains(got, "git push") || !allHooksOnce(readJSON(t, path)) {
+		t.Fatalf("after upgrade: %s", got)
+	}
+
+	// Uninstall also removes the old rules.
+	os.WriteFile(path, []byte(old), 0o644)
+	if changed, err := removeClaudeSettings(atRoot(t, path)); err != nil || !changed {
+		t.Fatalf("remove: changed=%v err=%v", changed, err)
+	}
+	want := map[string]any{"permissions": map[string]any{"ask": []any{"Bash(git push:*)"}}}
+	if got := readJSON(t, path); !reflect.DeepEqual(got, want) {
+		t.Fatalf("after remove: %v", got)
+	}
+}
+
 func TestClaudeSettingsInvalidLeftUntouched(t *testing.T) {
 	for _, content := range []string{`{"model": `, `[]`, `{"hooks": []}`, `{"permissions": {"ask": "x"}}`} {
 		path := filepath.Join(t.TempDir(), "settings.local.json")
@@ -118,7 +154,7 @@ func TestClaudeSettingsInvalidLeftUntouched(t *testing.T) {
 			t.Fatalf("file changed: %q", got)
 		}
 	}
-	if !strings.Contains(claudeSnippet(), `"SessionStart"`) || !strings.Contains(claudeSnippet(), `"ask"`) {
+	if !strings.Contains(claudeSnippet(), `"SessionStart"`) || !strings.Contains(claudeSnippet(), `"PreToolUse"`) || !strings.Contains(claudeSnippet(), `"ask"`) {
 		t.Fatalf("snippet: %s", claudeSnippet())
 	}
 }

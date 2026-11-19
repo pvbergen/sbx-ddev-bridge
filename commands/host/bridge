@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Description: Manage the ddev-bridge for sandboxed agents
-## Usage: bridge [enable|disable|status|ensure|stop|diff|approve [-y]|list|log [N]|version|policy ls|allow|deny|rm|reset]
-## Example: "ddev bridge enable" or "ddev bridge approve" or "ddev bridge policy deny --reason 'reaches live' ddev get_dump"
+## Usage: bridge [enable|disable|status|ensure|stop|diff|approve [-y]|list|log [N]|version|update [vX.Y.Z]|policy ls|allow|deny|rm|reset]
+## Example: "ddev bridge enable" or "ddev bridge approve" or "ddev bridge update" or "ddev bridge policy deny --reason 'reaches live' ddev get_dump"
 ## CanRunGlobally: true
 set -euo pipefail
 
@@ -43,6 +43,38 @@ case "$cmd" in
     sub="${1:-ls}"
     if [ $# -gt 0 ]; then shift; fi
     exec "$b" policy "$sub" --dir "$root" "$@" ;;
+  update)
+    # Installs a release (default: the latest) like the README's install commands, after checking its sha256.
+    releases="${DDEV_BRIDGE_RELEASES:-https://github.com/pvbergen/sbx-ddev-bridge/releases}"
+    command -v curl >/dev/null || { echo "update needs curl" >&2; exit 1; }
+    tag="${1:-}"
+    if [ -z "$tag" ]; then
+      latest=$(curl -fsSIL -o /dev/null -w '%{url_effective}' "$releases/latest") ||
+        { echo "could not reach $releases/latest" >&2; exit 1; }
+      tag="${latest##*/}"
+    fi
+    if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+      echo "bad release tag '$tag' (expected vX.Y.Z)" >&2; exit 2
+    fi
+    current=$("$b" version 2>/dev/null || true)
+    if [ -z "${1:-}" ] && [ "$current" = "$tag" ]; then
+      echo "already at $tag (the latest release); 'ddev bridge update $tag' reinstalls it"; exit 0
+    fi
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    echo "downloading $tag (installed: ${current:-unknown})"
+    for f in ddev-bridge.tar.gz ddev-bridge.tar.gz.sha256; do
+      curl -fsSL -o "$tmp/$f" "$releases/download/$tag/$f" ||
+        { echo "could not download $f for $tag" >&2; exit 1; }
+    done
+    if command -v sha256sum >/dev/null; then sum=$(sha256sum "$tmp/ddev-bridge.tar.gz")
+    else sum=$(shasum -a 256 "$tmp/ddev-bridge.tar.gz"); fi
+    read -r want _ < "$tmp/ddev-bridge.tar.gz.sha256"
+    if [ "${sum%% *}" != "$want" ]; then
+      echo "checksum mismatch for ddev-bridge.tar.gz; nothing installed" >&2; exit 1
+    fi
+    tar -xzf "$tmp/ddev-bridge.tar.gz" -C "$tmp"
+    "$tmp/ddev-bridge/install.sh" ;;
   log)
     state="${DDEV_BRIDGE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ddev-bridge}"
     exec tail -n "${1:-50}" "$state/bridge.log" ;;

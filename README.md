@@ -28,8 +28,10 @@ This installs the binaries and the `ddev bridge` command into ddev's global dir,
 sbx network policy, and starts the bridge. If ddev's `global_config.yaml` already has hooks of your own,
 nothing is installed and the task to add by hand is printed.
 
-**Update:** the same two commands again. Tokens, approvals and your rules stay; enabled projects get the
-new client and the current Claude Code hooks and ask rules.
+**Update:** `ddev bridge update` installs the latest release (`ddev bridge update vX.Y.Z` a specific one):
+it downloads the package, checks its sha256 and runs `install.sh`. The checksum comes from the same release,
+so it catches broken downloads, not a tampered release. Tokens, approvals and your rules stay; enabled
+projects get the new client and the current Claude Code hooks and ask rules.
 
 ## Enable a project
 On the host, in each project the agent may use:

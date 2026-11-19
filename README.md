@@ -95,8 +95,8 @@ If the file isn't valid JSON, it is left alone and the snippet is printed.
 
 ## Uninstall
 **One project:** `ddev bridge disable` in the project. It removes `.ddev-bridge/`, the ignore block and
-the Claude Code overlay, and unregisters the project. For a project directory that's already gone, run
-the binary directly: `<ddev global dir>/ddev-bridge-dist/host/<os>-<arch>/ddev-bridge disable <dir>`.
+the Claude Code overlay, and unregisters the project. Projects you moved or deleted: `ddev bridge prune` unregisters every project
+whose directory is gone (run `ddev bridge enable` again at the new location).
 
 **The machine**, after disabling every project (it refuses otherwise and lists them):
 ```bash

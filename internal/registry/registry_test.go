@@ -63,3 +63,29 @@ func TestRegisterRefusesTokenSymlinkOut(t *testing.T) {
 		})
 	}
 }
+
+func TestPruneDropsOnlyGoneRoots(t *testing.T) {
+	kept := project(t)
+	moved := t.TempDir()
+	os.MkdirAll(filepath.Join(moved, ".ddev"), 0o755)
+	os.WriteFile(filepath.Join(moved, ".ddev", "config.yaml"), []byte("name: m\n"), 0o644)
+	reg, _ := Load()
+	for _, dir := range []string{kept, moved} {
+		if _, err := reg.Register(dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.RemoveAll(moved)
+
+	gone, err := reg.Prune()
+	if err != nil || len(gone) != 1 || gone[0].Name != "m" {
+		t.Fatalf("gone=%+v err=%v", gone, err)
+	}
+	again, _ := Load()
+	if len(again.Projects) != 1 || again.Projects[0].Name != "p" {
+		t.Fatalf("registry after prune: %+v", again.Projects)
+	}
+	if gone, _ := again.Prune(); gone != nil {
+		t.Fatalf("second prune removed %+v", gone)
+	}
+}

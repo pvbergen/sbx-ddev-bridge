@@ -38,7 +38,7 @@ var claudeAskRules = func() []string {
 	for _, c := range []string{"cim", "config:import", "config:set", "pmu", "pm:uninstall", "si", "site:install", "sql:drop", "deploy"} {
 		rules = append(rules, "Bash(drush "+c+":*)", "Bash(ddev drush "+c+":*)")
 	}
-	for _, c := range []string{"composer require", "composer update", "composer remove", "import-db", "snapshot restore", "stop", "restart"} {
+	for _, c := range []string{"composer require", "composer update", "composer remove", "import-db", "snapshot restore", "start", "stop", "restart"} {
 		rules = append(rules, "Bash(ddev "+c+":*)")
 	}
 	return rules

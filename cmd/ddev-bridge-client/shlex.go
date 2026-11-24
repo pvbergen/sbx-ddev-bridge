@@ -9,8 +9,9 @@ import (
 // conservative reading for the PreToolUse hook, not a full shell parser:
 // operators (; & | && || newline parentheses) end a command, redirection
 // targets are dropped, and commands inside $(…), `…` and <(…) are returned as
-// commands of their own. Words with $-expansions or unquoted globs are marked
-// dynamic.
+// commands of their own. Here-document bodies are skipped; when the delimiter
+// is unquoted, commands in their $(…) and `…` are returned too. Words with
+// $-expansions or unquoted globs are marked dynamic.
 func lexShell(s string) ([][]shWord, error) {
 	l := lexer{s: s}
 	if err := l.run(false); err != nil {
@@ -23,6 +24,14 @@ type lexer struct {
 	s    string
 	i    int
 	cmds [][]shWord
+	// heredocs are the here-documents whose bodies start after the next newline.
+	heredocs []heredoc
+}
+
+type heredoc struct {
+	delim     string
+	stripTabs bool // <<-
+	quoted    bool // no expansions in the body
 }
 
 // run lexes until the end of input or, when nested, the ) that closes a $( or
@@ -100,6 +109,12 @@ func (l *lexer) run(nested bool) error {
 				inWord = false
 			}
 			endWord()
+			if strings.HasPrefix(l.s[l.i:], "<<") && !strings.HasPrefix(l.s[l.i:], "<<<") {
+				if err := l.heredocStart(); err != nil {
+					return err
+				}
+				continue
+			}
 			for l.i < len(l.s) && strings.IndexByte("<>&|", l.s[l.i]) >= 0 {
 				l.i++
 			}
@@ -115,7 +130,13 @@ func (l *lexer) run(nested bool) error {
 				return nil
 			}
 			depth--
-		case c == ';' || c == '&' || c == '|' || c == '\n':
+		case c == '\n':
+			endCmd()
+			l.i++
+			if err := l.heredocBodies(); err != nil {
+				return err
+			}
+		case c == ';' || c == '&' || c == '|':
 			endCmd()
 			l.i++
 		default:
@@ -131,6 +152,107 @@ func (l *lexer) run(nested bool) error {
 		return errors.New("unterminated $(")
 	}
 	endCmd()
+	if len(l.heredocs) > 0 {
+		return errors.New("unterminated here-document")
+	}
+	return nil
+}
+
+// heredocStart reads `<<delim` or `<<-delim` at l.i and queues the body.
+func (l *lexer) heredocStart() error {
+	h := heredoc{}
+	l.i += 2
+	if l.i < len(l.s) && l.s[l.i] == '-' {
+		h.stripTabs = true
+		l.i++
+	}
+	for l.i < len(l.s) && (l.s[l.i] == ' ' || l.s[l.i] == '\t') {
+		l.i++
+	}
+	var d strings.Builder
+	for l.i < len(l.s) && strings.IndexByte(" \t\n;&|<>()", l.s[l.i]) < 0 {
+		switch c := l.s[l.i]; c {
+		case '\'', '"':
+			end := strings.IndexByte(l.s[l.i+1:], c)
+			if end < 0 {
+				return errors.New("unterminated quote")
+			}
+			d.WriteString(l.s[l.i+1 : l.i+1+end])
+			h.quoted = true
+			l.i += end + 2
+		case '\\':
+			if l.i+1 < len(l.s) {
+				d.WriteByte(l.s[l.i+1])
+			}
+			h.quoted = true
+			l.i += 2
+		case '$', '`':
+			return errors.New("here-document delimiter with an expansion")
+		default:
+			d.WriteByte(c)
+			l.i++
+		}
+	}
+	h.delim = d.String()
+	if h.delim == "" && !h.quoted {
+		return errors.New("here-document without a delimiter")
+	}
+	l.heredocs = append(l.heredocs, h)
+	return nil
+}
+
+// heredocBodies skips the queued here-document bodies; l.i is at the start of
+// the line after the one that started them.
+func (l *lexer) heredocBodies() error {
+	for _, h := range l.heredocs {
+		start := l.i
+		for {
+			if l.i >= len(l.s) {
+				return errors.New("unterminated here-document")
+			}
+			end := strings.IndexByte(l.s[l.i:], '\n')
+			if end < 0 {
+				end = len(l.s) - l.i
+			}
+			line := l.s[l.i : l.i+end]
+			if h.stripTabs {
+				line = strings.TrimLeft(line, "\t")
+			}
+			bodyEnd := l.i
+			l.i = min(l.i+end+1, len(l.s))
+			if line == h.delim {
+				if !h.quoted {
+					if err := l.bodyExpansions(l.s[start:bodyEnd]); err != nil {
+						return err
+					}
+				}
+				break
+			}
+		}
+	}
+	l.heredocs = nil
+	return nil
+}
+
+// bodyExpansions adds the commands in the $(…) and `…` of an unquoted
+// here-document body.
+func (l *lexer) bodyExpansions(body string) error {
+	sub := lexer{s: body}
+	var word strings.Builder
+	dynamic := false
+	for sub.i < len(sub.s) {
+		switch c := sub.s[sub.i]; {
+		case c == '\\':
+			sub.i += 2
+		case c == '$' || c == '`':
+			if err := sub.expansion(&word, &dynamic); err != nil {
+				return err
+			}
+		default:
+			sub.i++
+		}
+	}
+	l.cmds = append(l.cmds, sub.cmds...)
 	return nil
 }
 

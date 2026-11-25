@@ -43,6 +43,13 @@ func TestCheckShell(t *testing.T) {
 		`ls $DIR`,
 		`ddev exec ls`,
 		`ddev describe`,
+		// here-document bodies are text, not commands
+		"gh pr create --title x --body \"$(cat <<'EOF'\nFix `$settings['trusted_host_patterns']` for *.ddev.site.\nIt doesn't touch SQL (or drush).\nEOF\n)\"",
+		"cat <<EOF > notes.md\nddev mysql isn't run here; neither is `ls`\nEOF\ndrush sqlq \"SELECT 1\"",
+		"cat <<-\"EOF\"\n\tddev mysql -e 'DROP TABLE x'\n\tEOF\necho done",
+		"cat <<\\EOF\n$(drush sqlq 'DELETE FROM x')\nEOF",
+		"cat <<A <<B\nddev mysql it's\nA\nddev mysql it's\nB",
+		"cat <<'EOF'\nddev mysql it's\nEOF",
 	}
 	for _, c := range noPrompt {
 		if r := checkShell(c); r != "" {
@@ -87,6 +94,15 @@ func TestCheckShell(t *testing.T) {
 		`xargs drush sqlq < queries.txt`,
 		`drush sqlq "SELECT 1`,
 		`echo $(drush sqlq "SELECT 1"`,
+		"ddev mysql <<EOF\nSELECT 1\nEOF",
+		"drush sqlq <<'EOF'\nSELECT 1\nEOF",
+		"cat <<EOF\n$(drush sqlq 'DELETE FROM x')\nEOF",
+		"cat <<EOF\n`ddev mysql -e 'DROP TABLE x'`\nEOF",
+		"cat <<EOF; drush sqlq \"DELETE FROM x\"\nbody\nEOF",
+		"cat <<'EOF'\nbody\nEOF\ndrush sqlq \"DELETE FROM x\"",
+		"cat <<-EOF\n\tbody\n\tEOF\nddev mysql -e 'DROP TABLE x'",
+		"cat <<EOF\nddev mysql never ends",
+		"cat <<$X\nddev mysql\n$X",
 	}
 	for _, c := range ask {
 		if r := checkShell(c); r == "" {

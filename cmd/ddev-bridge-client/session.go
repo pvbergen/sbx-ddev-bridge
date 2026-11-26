@@ -38,9 +38,7 @@ func sessionStart(e sessionEnv, w io.Writer) error {
 		notes = append(notes, fmt.Sprintf("`$CLAUDE_ENV_FILE` is not set; put the bridge on PATH yourself: export PATH=%s:\"$PATH\"", shellQuote(e.binDir)))
 	} else if err := ensureLine(e.envFile, pathLine(e.binDir)); err != nil {
 		notes = append(notes, fmt.Sprintf("could not add %s to PATH via %s (%v); call it by its full path", e.binDir, e.envFile, err))
-	} else {
-		notes = append(notes, fmt.Sprintf("`ddev` and `drush` in shell commands run through the bridge client in %s.", e.binDir))
-	}
+	} // success needs no note: the guide already says ddev and drush are on PATH
 	switch {
 	case e.clone:
 		notes = append(notes, "This sandbox runs in clone mode, so the bridge client refuses to run (host ddev would not see your edits). Do not use ddev or drush; tell the user a direct-mode sandbox is needed.")

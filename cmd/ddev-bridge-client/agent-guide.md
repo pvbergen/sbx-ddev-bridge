@@ -3,7 +3,7 @@
 In a sandbox with `.ddev-bridge/bin/ddev-bridge-client`, you reach the host DDEV project only through this bridge. This overrides general DDEV guidance: no Docker, `ddev ssh`, SSH, or interactive and long-running sessions; run one-shot commands.
 
 ## Calling
-- `ddev` and `drush` are already on PATH (symlinks in `.ddev-bridge/bin/`, set by the session-start hook); don't export it. Fallback: `ddev-bridge-client drush cache:rebuild`.
+- `ddev` and `drush` are already on PATH (symlinks in `.ddev-bridge/bin/`, set by the session-start hook, unless Status below says otherwise); don't export it. Fallback: `ddev-bridge-client drush cache:rebuild`.
 - Use full names (`drush cache:rebuild`, `drush config:import`), not aliases: ambiguous short forms are denied, and full names keep the audit log readable. Call tools directly (`ddev exec vendor/bin/phpunit`, not `ddev exec php vendor/bin/phpunit`): host rules name the tool.
 - `ddev exec` runs one program with its arguments as your shell passes them; no shell runs in the container. Quote for your own shell only (`-resize '1280x1280>'` arrives intact); `>`, `|`, `&&` and `*` act in the sandbox.
 - No stdin or TTY: pass `-y`. Run one bridge call at a time per project.

@@ -40,6 +40,9 @@ func (l *lexer) run(nested bool) error {
 	var cur []shWord
 	var word strings.Builder
 	inWord, dynamic, redirect := false, false, false
+	// bracket marks an unquoted [ in the current word; it is a glob only once
+	// a ] follows, so the test commands [ and [[ are not dynamic.
+	bracket := false
 	depth := 0
 	endWord := func() {
 		if inWord {
@@ -49,7 +52,7 @@ func (l *lexer) run(nested bool) error {
 			redirect = false
 		}
 		word.Reset()
-		inWord, dynamic = false, false
+		inWord, dynamic, bracket = false, false, false
 	}
 	endCmd := func() {
 		endWord()
@@ -140,8 +143,11 @@ func (l *lexer) run(nested bool) error {
 			endCmd()
 			l.i++
 		default:
-			if c == '*' || c == '?' || c == '[' {
+			switch {
+			case c == '*' || c == '?' || c == ']' && bracket:
 				dynamic = true
+			case c == '[':
+				bracket = true
 			}
 			word.WriteByte(c)
 			inWord = true

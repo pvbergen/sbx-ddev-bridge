@@ -34,6 +34,9 @@ func TestCheckShell(t *testing.T) {
 		`drush sqlq 'SELECT "$x"'`,
 		`echo "$(drush sqlq 'SELECT 1')"`,
 		`FOO=1 drush sqlq "SELECT 1"`,
+		// [ and [[ are test commands, not globs
+		`drush cr; [ -f "$f" ] || echo missing`,
+		`ddev ls; [[ -n "$f" ]] && echo ok`,
 		// not SQL queries: other rules apply
 		`drush cr`,
 		`drush sql:dump --result-file=../x.sql`,
@@ -73,6 +76,7 @@ func TestCheckShell(t *testing.T) {
 		`drush sqlq "SELECT $(cat x)"`,
 		`drush sqlq SELECT\ *\ FROM\ x`,
 		`drush $CMD "DELETE FROM x"`,
+		`dru[s]h sqlq "DELETE FROM x"`,
 		`ddev mysql`,
 		`ddev mysql < dump.sql`,
 		`ddev mysql -e "DROP TABLE x"`,

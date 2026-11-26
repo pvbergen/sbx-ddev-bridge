@@ -7,6 +7,7 @@ Instructions for an agent that runs in a sandbox using the bridge.
 - Call `ddev` and `drush` through the symlinks in `.ddev-bridge/bin/` (`drush cr`, `ddev drush cr`, `ddev logs`), with `.ddev-bridge/bin` first on PATH, or pass the `ddev` subcommand to the client (`ddev-bridge-client drush cr`).
 - Use full command names (`drush config:import`, `drush cache:rebuild`, `ddev describe`), not aliases or abbreviations. The bridge resolves short forms, but it denies ambiguous ones, and full names keep the audit log readable.
 - Call tools directly (`ddev exec vendor/bin/phpunit`), not through an interpreter (`ddev exec php vendor/bin/phpunit`). The developer's rules name the tool, so the interpreter form may be denied where the direct call is allowed.
+- `ddev exec` runs one program with its arguments exactly as your shell passes them, without a shell in the container: quote for your own shell only (`ddev exec magick in.png -resize '1280x1280>' out.png` arrives intact), and pipes, redirects and globs run in the sandbox. Wrappers such as `timeout`, `time` or `nice` are denied inside `ddev exec`; put them in front instead (`timeout 60 ddev exec …`, `time drush …`).
 - There is no stdin or TTY. Pass `-y` to commands that ask for confirmation.
 - Run one bridge call at a time; the bridge runs only one command per project at once.
 

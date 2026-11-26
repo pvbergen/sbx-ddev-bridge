@@ -72,14 +72,86 @@ type shWord struct {
 
 // wrappers run another command we don't look into.
 var wrappers = map[string]bool{
-	"bash": true, "sh": true, "zsh": true, "dash": true, "eval": true, "exec": true, "xargs": true,
-	"env": true, "timeout": true, "time": true, "nice": true, "nohup": true, "command": true,
-	"sudo": true, "su": true, "watch": true, "parallel": true, "script": true, "stdbuf": true,
+	"bash": true, "sh": true, "zsh": true, "dash": true, "eval": true, "xargs": true,
+	"sudo": true, "su": true, "watch": true, "parallel": true, "script": true,
+}
+
+// wrapSpec describes a wrapper that runs the rest of its arguments as a
+// command, so the hook can check that command instead of asking.
+type wrapSpec struct {
+	flags   map[string]bool // options without a value
+	valued  map[string]bool // options with a value: -x v, -xv, --long v, --long=v
+	numeric bool            // -<digits> is an option (nice -10)
+	assign  bool            // NAME=value words come before the command (env)
+	skip    int             // positional words before the command (timeout's duration)
+}
+
+func set(s ...string) map[string]bool {
+	m := map[string]bool{}
+	for _, v := range s {
+		m[v] = true
+	}
+	return m
+}
+
+var simpleWrappers = map[string]wrapSpec{
+	"timeout": {flags: set("--preserve-status", "--foreground", "-v", "--verbose"), valued: set("-s", "--signal", "-k", "--kill-after"), skip: 1},
+	"nice":    {valued: set("-n", "--adjustment"), numeric: true},
+	"nohup":   {},
+	"time":    {flags: set("-p", "-a", "--append", "-v", "--verbose", "-q", "--quiet"), valued: set("-f", "--format", "-o", "--output")},
+	"stdbuf":  {valued: set("-i", "-o", "-e", "--input", "--output", "--error")},
+	"command": {flags: set("-p", "-v", "-V")},
+	"exec":    {flags: set("-c", "-l"), valued: set("-a")},
+	"env":     {flags: set("-i", "--ignore-environment", "-0", "--null", "-"), valued: set("-u", "--unset", "-C", "--chdir"), assign: true},
+}
+
+// unwrap returns the command a simple wrapper runs, or why it can't tell.
+func unwrap(name string, spec wrapSpec, args []shWord) ([]shWord, string) {
+	cantTell := fmt.Sprintf("can't tell what `%s` runs", name)
+	skip := spec.skip
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if spec.assign && isAssignment(a.text) {
+			continue // the value may be dynamic; the name is not
+		}
+		if a.dynamic {
+			return nil, cantTell
+		}
+		switch t := a.text; {
+		case t == "--":
+			if len(args[i+1:]) <= skip {
+				return nil, ""
+			}
+			return args[i+1+skip:], ""
+		case strings.HasPrefix(t, "-") && t != "-":
+			opt, _, hasVal := strings.Cut(t, "=")
+			if !strings.HasPrefix(t, "--") {
+				opt, hasVal = t[:2], len(t) > 2
+			}
+			switch {
+			case spec.numeric && isDigits(t[1:]):
+			case spec.flags[t]:
+			case spec.valued[opt] && !hasVal:
+				i++
+				if i < len(args) && args[i].dynamic {
+					return nil, cantTell
+				}
+			case spec.valued[opt]:
+			default:
+				return nil, fmt.Sprintf("`%s` option %s", name, t)
+			}
+		case skip > 0:
+			skip--
+		default:
+			return args[i:], ""
+		}
+	}
+	return nil, ""
 }
 
 // shellKeywords may precede a command.
 var shellKeywords = map[string]bool{"!": true, "{": true, "}": true, "if": true, "then": true,
-	"else": true, "elif": true, "do": true, "while": true, "until": true, "time": true}
+	"else": true, "elif": true, "do": true, "while": true, "until": true}
 
 // checkSimple checks one simple command.
 func checkSimple(words []shWord) string {
@@ -114,6 +186,14 @@ func checkSimple(words []shWord) string {
 		}
 	case wrappers[name]:
 		return fmt.Sprintf("can't tell what `%s` runs", name)
+	default:
+		if spec, ok := simpleWrappers[name]; ok {
+			inner, reason := unwrap(name, spec, words[1:])
+			if reason != "" {
+				return reason
+			}
+			return checkSimple(inner)
+		}
 	}
 	return ""
 }
